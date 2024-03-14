@@ -23,7 +23,8 @@ import org.apache.pinot.common.Utils;
 
 public enum MinionGauge implements AbstractMetrics.Gauge {
   VERSION("version", true),
-  NUMBER_OF_TASKS("tasks", true);
+  NUMBER_OF_TASKS("tasks", true),
+  TASK_STATE("taskState", false);
 
   private final String _gaugeName;
   private final String _unit;

@@ -18,7 +18,9 @@
  */
 package org.apache.pinot.minion.taskfactory;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
@@ -47,6 +49,7 @@ import org.apache.pinot.minion.exception.TaskCancelledException;
 import org.apache.pinot.minion.executor.PinotTaskExecutor;
 import org.apache.pinot.minion.executor.PinotTaskExecutorFactory;
 import org.apache.pinot.minion.executor.TaskExecutorFactoryRegistry;
+import org.apache.pinot.spi.ingestion.batch.BatchConfigProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -162,10 +165,16 @@ public class TaskFactoryRegistry {
                       MinionMeter.NUMBER_TASKS_COMPLETED, 1L);
                 }
                 LOGGER.info("Task: {} succeeded", _taskConfig.getId());
+                String taskId = pinotTaskConfig.getConfigs().get(BatchConfigProperties.SEQUENCE_ID);
+                String metricsSuffix = tableName + "." + taskId + "." + taskType;
+                _minionMetrics.setOrUpdateTableGauge(metricsSuffix, MinionGauge.TASK_STATE, 1L);
                 return new TaskResult(TaskResult.Status.COMPLETED, "Succeeded");
               } catch (TaskCancelledException e) {
                 _eventObserver.notifyTaskCancelled(pinotTaskConfig);
                 _minionMetrics.addMeteredValue(taskType, MinionMeter.NUMBER_TASKS_CANCELLED, 1L);
+                String taskId = pinotTaskConfig.getConfigs().get(BatchConfigProperties.SEQUENCE_ID);
+                String metricsSuffix = tableName + "." + taskId + "." + taskType;
+                _minionMetrics.setOrUpdateTableGauge(metricsSuffix, MinionGauge.TASK_STATE, 2L);
                 if (tableName != null) {
                   _minionMetrics.addMeteredTableValue(tableName, taskType,
                       MinionMeter.NUMBER_TASKS_CANCELLED, 1L);
@@ -175,6 +184,9 @@ public class TaskFactoryRegistry {
               } catch (FatalException e) {
                 _eventObserver.notifyTaskError(pinotTaskConfig, e);
                 _minionMetrics.addMeteredValue(taskType, MinionMeter.NUMBER_TASKS_FATAL_FAILED, 1L);
+                String taskId = pinotTaskConfig.getConfigs().get(BatchConfigProperties.SEQUENCE_ID);
+                String metricsSuffix = tableName + "." + taskId + "." + taskType;
+                _minionMetrics.setOrUpdateTableGauge(metricsSuffix, MinionGauge.TASK_STATE, 3L);
                 if (tableName != null) {
                   _minionMetrics.addMeteredTableValue(tableName, taskType,
                       MinionMeter.NUMBER_TASKS_FATAL_FAILED, 1L);
@@ -184,6 +196,9 @@ public class TaskFactoryRegistry {
               } catch (Exception e) {
                 _eventObserver.notifyTaskError(pinotTaskConfig, e);
                 _minionMetrics.addMeteredValue(taskType, MinionMeter.NUMBER_TASKS_FAILED, 1L);
+                String taskId = pinotTaskConfig.getConfigs().get(BatchConfigProperties.SEQUENCE_ID);
+                String metricsSuffix = tableName + "." + taskId + "." + taskType;
+                _minionMetrics.setOrUpdateTableGauge(metricsSuffix, MinionGauge.TASK_STATE, 4L);
                 if (tableName != null) {
                   _minionMetrics.addMeteredTableValue(tableName, taskType,
                       MinionMeter.NUMBER_TASKS_FAILED, 1L);
