@@ -195,9 +195,10 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
             segmentNames.add(segmentName);
             downloadURLs.add(segmentZKMetadata.getDownloadUrl());
             numRecordsPerTask += segmentZKMetadata.getTotalDocs();
-
-            if (numRecordsPerTask >= maxNumRecordsPerTask
-                || completedSegmentsZKMetadataCount == completedSegmentsZKMetadata.size() - 1) {
+          }
+          if (numRecordsPerTask >= maxNumRecordsPerTask
+              || completedSegmentsZKMetadataCount >= completedSegmentsZKMetadata.size() - 1) {
+            if (!segmentNames.isEmpty()) {
               segmentNamesList.add(segmentNames);
               downloadURLsList.add(downloadURLs);
               numRecordsPerTask = 0;
