@@ -276,6 +276,44 @@ public class RealtimeToOfflineSegmentsTaskGeneratorTest {
     assertEquals(configs.get(MinionConstants.DOWNLOAD_URL_KEY), "download1,download2");
     assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590019200000"); // 21 May 2020 UTC
     assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590105600000");  // 22 May 2020 UTC
+
+    // Test MaxNumRecordsPerTask. We can do that by setting the totalDocs in segment metadata to 2 each for 2 of the
+    // segments and setting the maxNumRecordsPerTask in task config to 2. Then we can test for creation
+    // of 2 tasks and check if each of the tasks contain information of each of the segments.
+
+    // Set totalDocs in segment metadata.
+    segmentZKMetadata1.setTotalDocs(2);
+    segmentZKMetadata2.setTotalDocs(2);
+
+    // Set maxNumRecordsPerTask in task config.
+    realtimeTableConfig.getTaskConfig().getConfigsForTaskType(RealtimeToOfflineSegmentsTask.TASK_TYPE)
+        .put(MinionConstants.MergeRollupTask.MAX_NUM_RECORDS_PER_TASK_KEY, "2");
+
+    // Generate tasks.
+    generator = new RealtimeToOfflineSegmentsTaskGenerator();
+    generator.init(mockClusterInfoProvide);
+    pinotTaskConfigs = generator.generateTasks(Lists.newArrayList(realtimeTableConfig));
+
+    // 2 tasks should be created.
+    assertEquals(pinotTaskConfigs.size(), 2);
+
+    // Check configs for first task.
+    assertEquals(pinotTaskConfigs.get(0).getTaskType(), RealtimeToOfflineSegmentsTask.TASK_TYPE);
+    configs = pinotTaskConfigs.get(0).getConfigs();
+    assertEquals(configs.get(MinionConstants.TABLE_NAME_KEY), REALTIME_TABLE_NAME);
+    assertEquals(configs.get(MinionConstants.SEGMENT_NAME_KEY), "testTable__0__0__12345");
+    assertEquals(configs.get(MinionConstants.DOWNLOAD_URL_KEY), "download1");
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590019200000"); // 21 May 2020 UTC
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590105600000"); // 22 May 2020 UTC
+
+    // Check configs for second task.
+    assertEquals(pinotTaskConfigs.get(1).getTaskType(), RealtimeToOfflineSegmentsTask.TASK_TYPE);
+    configs = pinotTaskConfigs.get(1).getConfigs();
+    assertEquals(configs.get(MinionConstants.TABLE_NAME_KEY), REALTIME_TABLE_NAME);
+    assertEquals(configs.get(MinionConstants.SEGMENT_NAME_KEY), "testTable__1__0__12345");
+    assertEquals(configs.get(MinionConstants.DOWNLOAD_URL_KEY), "download2");
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590019200000"); // 21 May 2020 UTC
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590105600000"); // 22 May 2020 UTC
   }
 
   /**
