@@ -304,7 +304,7 @@ public class RealtimeToOfflineSegmentsTaskGeneratorTest {
     assertEquals(configs.get(MinionConstants.SEGMENT_NAME_KEY), "testTable__0__0__12345");
     assertEquals(configs.get(MinionConstants.DOWNLOAD_URL_KEY), "download1");
     assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590019200000"); // 21 May 2020 UTC
-    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590105600000"); // 22 May 2020 UTC
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590130800000"); // 22 May 2020 UTC
 
     // Check configs for second task.
     assertEquals(pinotTaskConfigs.get(1).getTaskType(), RealtimeToOfflineSegmentsTask.TASK_TYPE);
@@ -312,7 +312,7 @@ public class RealtimeToOfflineSegmentsTaskGeneratorTest {
     assertEquals(configs.get(MinionConstants.TABLE_NAME_KEY), REALTIME_TABLE_NAME);
     assertEquals(configs.get(MinionConstants.SEGMENT_NAME_KEY), "testTable__1__0__12345");
     assertEquals(configs.get(MinionConstants.DOWNLOAD_URL_KEY), "download2");
-    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590019200000"); // 21 May 2020 UTC
+    assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY), "1590048000000"); // 21 May 2020 UTC
     assertEquals(configs.get(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY), "1590105600000"); // 22 May 2020 UTC
   }
 

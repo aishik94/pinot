@@ -158,8 +158,10 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
       // (exclusive)
       List<String> segmentNames = new ArrayList<>();
       List<String> downloadURLs = new ArrayList<>();
+      List<SegmentZKMetadata> segmentsZKMetadata = new ArrayList<>();
       List<List<String>> segmentNamesList = new ArrayList<>();
       List<List<String>> downloadURLsList = new ArrayList<>();
+      List<List<SegmentZKMetadata>> completedSegmentsZKMetadataList = new ArrayList<>();
       int completedSegmentsZKMetadataCount = 0;
       int numRecordsPerTask = 0;
 
@@ -194,6 +196,7 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
 
             segmentNames.add(segmentName);
             downloadURLs.add(segmentZKMetadata.getDownloadUrl());
+            segmentsZKMetadata.add(segmentZKMetadata);
             numRecordsPerTask += segmentZKMetadata.getTotalDocs();
           }
           if (numRecordsPerTask >= maxNumRecordsPerTask
@@ -201,9 +204,11 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
             if (!segmentNames.isEmpty()) {
               segmentNamesList.add(segmentNames);
               downloadURLsList.add(downloadURLs);
+              completedSegmentsZKMetadataList.add(segmentsZKMetadata);
               numRecordsPerTask = 0;
               segmentNames = new ArrayList<>();
               downloadURLs = new ArrayList<>();
+              segmentsZKMetadata = new ArrayList<>();
             }
           }
           completedSegmentsZKMetadataCount++;
@@ -228,6 +233,9 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
 
         segmentNames = segmentNamesList.get(i);
         downloadURLs = downloadURLsList.get(i);
+        segmentsZKMetadata = completedSegmentsZKMetadataList.get(i);
+        long segmentStartTimeMs = (i == 0 ? windowStartMs : segmentsZKMetadata.get(0).getStartTimeMs());
+        long segmentEndTimeMs = ((i == (segmentNamesList.size() - 1)) ? windowEndMs : segmentsZKMetadata.get(segmentsZKMetadata.size() - 1).getEndTimeMs());
 
         configs.put(MinionConstants.TABLE_NAME_KEY, realtimeTableName);
         configs.put(MinionConstants.SEGMENT_NAME_KEY, StringUtils.join(segmentNames, ","));
@@ -235,8 +243,8 @@ public class RealtimeToOfflineSegmentsTaskGenerator extends BaseTaskGenerator {
         configs.put(MinionConstants.UPLOAD_URL_KEY, _clusterInfoAccessor.getVipUrl() + "/segments");
 
         // Segment processor configs
-        configs.put(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY, String.valueOf(windowStartMs));
-        configs.put(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY, String.valueOf(windowEndMs));
+        configs.put(RealtimeToOfflineSegmentsTask.WINDOW_START_MS_KEY, String.valueOf(segmentStartTimeMs));
+        configs.put(RealtimeToOfflineSegmentsTask.WINDOW_END_MS_KEY, String.valueOf(segmentEndTimeMs));
         String roundBucketTimePeriod = taskConfigs.get(RealtimeToOfflineSegmentsTask.ROUND_BUCKET_TIME_PERIOD_KEY);
         if (roundBucketTimePeriod != null) {
           configs.put(RealtimeToOfflineSegmentsTask.ROUND_BUCKET_TIME_PERIOD_KEY, roundBucketTimePeriod);
