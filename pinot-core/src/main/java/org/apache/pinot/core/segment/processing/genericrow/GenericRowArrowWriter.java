@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.pinot.core.segment.processing.genericrow;
 
 import java.io.BufferedOutputStream;
@@ -21,7 +39,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
-import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -32,18 +50,18 @@ import org.apache.pinot.spi.data.readers.GenericRow;
 
 public class GenericRowArrowWriter implements Closeable, FileWriter<GenericRow> {
 
+  private static final int DEFAULT_BATCH_SIZE = 1024;
   private final DataOutputStream _offsetStream;
-  private final BufferedOutputStream _dataStream;
+  private final FileOutputStream _dataStream;
   private final org.apache.arrow.vector.types.pojo.Schema _arrowSchema;
   private final Schema _pinotSchema;
-  private ArrowRecordBatch _recordBatch;
   private VectorSchemaRoot _vectorSchemaRoot;
   private int _batchRowCount;
 
   public GenericRowArrowWriter(File offsetFile, File dataFile, Schema pinotSchema)
       throws FileNotFoundException {
     _offsetStream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(offsetFile)));
-    _dataStream = new BufferedOutputStream(new FileOutputStream(dataFile));
+    _dataStream = new FileOutputStream(dataFile);
     _arrowSchema = getArrowSchemaFromPinotSchema(pinotSchema);
     _pinotSchema = pinotSchema;
     _vectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, new RootAllocator(Long.MAX_VALUE));
@@ -235,6 +253,46 @@ public class GenericRowArrowWriter implements Closeable, FileWriter<GenericRow> 
         }
       }
       _batchRowCount++;
+    }
+  }
+
+  public void write(GenericRow genericRow) {
+    fillVectorsFromGenericRow(_vectorSchemaRoot, genericRow);
+    _vectorSchemaRoot.setRowCount(_batchRowCount);
+    if (_batchRowCount >= DEFAULT_BATCH_SIZE) {
+      try (ArrowFileWriter writer = new ArrowFileWriter(_vectorSchemaRoot, null, _dataStream.getChannel());) {
+        writer.start();
+        writer.writeBatch();
+        writer.end();
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to write Arrow file", e);
+      }
+    }
+  }
+
+  public long writeData(GenericRow genericRow) {
+    fillVectorsFromGenericRow(_vectorSchemaRoot, genericRow);
+    _vectorSchemaRoot.setRowCount(_batchRowCount);
+    if (_batchRowCount >= DEFAULT_BATCH_SIZE) {
+      try (ArrowFileWriter writer = new ArrowFileWriter(_vectorSchemaRoot, null, _dataStream.getChannel());) {
+        writer.start();
+        writer.writeBatch();
+        writer.end();
+        return writer.bytesWritten();
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to write Arrow file", e);
+      }
+    }
+    return 0;
+  }
+
+  @Override
+  public void close() {
+    try {
+      _offsetStream.close();
+      _dataStream.close();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to close Arrow writer", e);
     }
   }
 }
