@@ -171,6 +171,7 @@
     <jmh.version>1.37</jmh.version>
     <audienceannotations.version>0.15.0</audienceannotations.version>
     <clp-ffi.version>0.4.4</clp-ffi.version>
+    <arrow.version>11.0.0</arrow.version>
     <stax2-api.version>4.2.2</stax2-api.version>
     <aws.sdk.version>2.25.44</aws.sdk.version>
     <joda-time.version>2.12.7</joda-time.version>
@@ -355,6 +356,16 @@
         <groupId>org.apache.pinot</groupId>
         <artifactId>pinot-minion</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-vector</artifactId>
+        <version>${arrow.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-memory-netty</artifactId>
+        <version>${arrow.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.pinot</groupId>
