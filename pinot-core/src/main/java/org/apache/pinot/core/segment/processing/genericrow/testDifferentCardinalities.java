@@ -2,6 +2,7 @@ package org.apache.pinot.core.segment.processing.genericrow;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import it.unimi.dsi.fastutil.Arrays;
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -47,6 +48,19 @@ public class testDifferentCardinalities {
     return vector;
   }
 
+  public static List<Integer> vectorWithCardinality(Double cardinalityPercentage, int elementCount) {
+
+    // declare an int array to store the values
+    List<Integer> valueList = new ArrayList<>();
+
+    for (int i = 0; i < elementCount; i++) {
+      valueList.add(i, i % (int)Math.round((elementCount * cardinalityPercentage / 100)));
+    }
+    Collections.shuffle(valueList);
+
+    return valueList;
+  }
+
   public static void main(String[] args) {
     String jsonlFilePath = "/Users/aishik/Work/rawData/100k-864.json";
     String arrowFilePath = "/Users/aishik/Work/rawData/output_sorted_int.arrow";
@@ -87,6 +101,16 @@ public class testDifferentCardinalities {
       indices4.setValueCount(DEFAULT_VECTOR_LENGTH);
       startTime = System.currentTimeMillis();
       indexSorter.sort(vector1, indices4, comparator);
+      System.out.println("Time taken to sort array: " + (System.currentTimeMillis() - startTime));
+
+      // Check time for 1% cardinality vector
+      List<Integer> v = vectorWithCardinality(0.001, 100000);
+      startTime = System.currentTimeMillis();
+      Arrays.quickSort(0, 100000, (a, b) -> Integer.compare(v.get(a), v.get(b)), (a, b) -> {
+        int temp = v.get(a);
+        v.set(a, v.get(b));
+        v.set(b, temp);
+      });
       System.out.println("Time taken to sort array: " + (System.currentTimeMillis() - startTime));
 
     }

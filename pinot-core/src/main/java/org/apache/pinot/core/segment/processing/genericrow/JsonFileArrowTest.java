@@ -58,7 +58,7 @@ public class JsonFileArrowTest {
 
     try {
       File dataFile = new File("/Users/aishik/Work/rawData/dataFile.arrow");
-      JsonNodeArrowWriter jsonNodeArrowWriter = new JsonNodeArrowWriter(null, dataFile, pinotSchema, sortedColumns);
+      JsonNodeArrowWriter jsonNodeArrowWriter = new JsonNodeArrowWriter(dataFile, pinotSchema, null);
 
       // Create an instance of ObjectMapper
       ObjectMapper objectMapper = new ObjectMapper();
