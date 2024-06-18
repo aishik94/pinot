@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 import org.apache.pinot.segment.local.utils.SchemaUtils;
@@ -58,7 +59,7 @@ public class JsonFileArrowTest {
 
     try {
       File dataFile = new File("/Users/aishik/Work/rawData/dataFile.arrow");
-      JsonNodeArrowWriter jsonNodeArrowWriter = new JsonNodeArrowWriter(dataFile, pinotSchema, null);
+      JsonNodeArrowWriter jsonNodeArrowWriter = new JsonNodeArrowWriter(dataFile, pinotSchema, Arrays.asList("high_cardinality_string"));
 
       // Create an instance of ObjectMapper
       ObjectMapper objectMapper = new ObjectMapper();

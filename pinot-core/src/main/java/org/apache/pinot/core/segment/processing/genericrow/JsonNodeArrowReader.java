@@ -53,13 +53,13 @@ public class JsonNodeArrowWriter{
 
   private static final int DEFAULT_BATCH_SIZE = 1000;
   private static final int DEFAULT_BATCH_SIZE_BYTES = 1048576;
-//  private final DataOutputStream _offsetStream;
+  //  private final DataOutputStream _offsetStream;
   private final FileOutputStream _dataStream;
   private final org.apache.arrow.vector.types.pojo.Schema _arrowSchema;
   private final Schema _pinotSchema;
   private VectorSchemaRoot _vectorSchemaRoot;
   private int _batchRowCount;
-   private File _dataFile;
+  private File _dataFile;
   List<String> _sortColumns;
   private int suffixCount = 0;
   private String filePrefix = "/Users/aishik/Work/rawData/outfiles/outFile";
@@ -428,9 +428,7 @@ public class JsonNodeArrowWriter{
     }
   }
 
-  public org.apache.arrow.vector.types.pojo.Schema getArrowSchema() {
-    return _arrowSchema;
-  }
+
 
   public long writeData(JsonNode jsonNode)
       throws IOException {
@@ -450,4 +448,4 @@ public class JsonNodeArrowWriter{
     }
     return 0;
   }
-  }
+}
