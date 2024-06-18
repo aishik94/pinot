@@ -63,7 +63,9 @@ public class JsonNodeArrowWriter{
    private File _dataFile;
   List<String> _sortColumns;
   private int suffixCount = 0;
+  private int sortedSuffixCount = 0;
   private String filePrefix = "/Users/aishik/Work/rawData/outfiles/outFile";
+  private String sortedFilePrefix = "/Users/aishik/Work/rawData/outfiles/sorted/outfile";
   private String fileSuffix = ".arrow";
   private int _currentBufferSize;
   private RootAllocator _allocator;
@@ -297,7 +299,7 @@ public class JsonNodeArrowWriter{
         sortAllColumns();
 
         // Dump the sorted columns in separate files for easier access during reading.
-        sortedColumnFilePath = filePrefix + (suffixCount++) + "_sorted" + fileSuffix;
+        sortedColumnFilePath = sortedFilePrefix + (sortedSuffixCount++) + "_sorted" + fileSuffix;
         sortedColumnFile = new File(sortedColumnFilePath);
         List<FieldVector> sortColumnsList = new ArrayList<>();
         List<Field> sortFields = new ArrayList<>();
