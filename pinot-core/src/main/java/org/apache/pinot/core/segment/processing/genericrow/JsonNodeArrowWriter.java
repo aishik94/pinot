@@ -34,6 +34,7 @@ import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -290,8 +291,36 @@ public class JsonNodeArrowWriter{
     if (_vectorSchemaRoot.getRowCount() >= 25000){
       String filePath = filePrefix + (suffixCount++) + fileSuffix;
       File outFile = new File(filePath);
+      String sortedColumnFilePath;
+      File sortedColumnFile;
       if (_sortColumns != null) {
         sortAllColumns();
+
+        // Dump the sorted columns in separate files for easier access during reading.
+        sortedColumnFilePath = filePrefix + (suffixCount++) + "_sorted" + fileSuffix;
+        sortedColumnFile = new File(sortedColumnFilePath);
+        List<FieldVector> sortColumnsList = new ArrayList<>();
+        List<Field> sortFields = new ArrayList<>();
+
+        for (String sortColumn : _sortColumns) {
+          sortColumnsList.add(_vectorSchemaRoot.getVector(sortColumn));
+          sortFields.add(
+              new Field(sortColumn, _vectorSchemaRoot.getVector(sortColumn).getField().getFieldType(), null));
+        }
+        try {
+          VectorSchemaRoot sortedVectorSchemaRoot = new VectorSchemaRoot(sortFields, sortColumnsList);
+          try (FileOutputStream fileOutputStream = new FileOutputStream(sortedColumnFile);
+              ArrowFileWriter writer = new ArrowFileWriter(sortedVectorSchemaRoot, null,
+                  fileOutputStream.getChannel());) {
+            writer.start();
+            writer.writeBatch();
+            writer.end();
+          } catch (Exception e) {
+            throw new RuntimeException("Failed to write Arrow file", e);
+          }
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to create sorted VectorSchemaRoot", e);
+        }
       }
       try (FileOutputStream fileOutputStream = new FileOutputStream(outFile);
           ArrowFileWriter writer = new ArrowFileWriter(_vectorSchemaRoot, null, fileOutputStream.getChannel());) {
