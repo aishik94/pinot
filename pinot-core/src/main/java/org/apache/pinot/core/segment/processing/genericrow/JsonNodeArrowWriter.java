@@ -64,7 +64,7 @@ public class JsonNodeArrowWriter{
   List<String> _sortColumns;
   private int suffixCount = 0;
   private int sortedSuffixCount = 0;
-  private String filePrefix = "/Users/aishik/Work/rawData/outfiles/outFile";
+  private String filePrefix = "/Users/aishik/Work/rawData/outfiles/datafiles/outFile";
   private String sortedFilePrefix = "/Users/aishik/Work/rawData/outfiles/sorted/outfile";
   private String fileSuffix = ".arrow";
   private int _currentBufferSize;

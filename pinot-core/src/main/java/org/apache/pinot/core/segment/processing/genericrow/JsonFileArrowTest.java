@@ -80,6 +80,9 @@ public class JsonFileArrowTest {
 
       // Close the scanner
       scanner.close();
+
+      JsonNodeArrowReader jsonNodeArrowReader = new JsonNodeArrowReader(jsonNodeArrowWriter.getArrowSchema(),null);
+      jsonNodeArrowReader.readAllRecordsAndDumpToFile();
     } catch (IOException e) {
       e.printStackTrace();
     }
