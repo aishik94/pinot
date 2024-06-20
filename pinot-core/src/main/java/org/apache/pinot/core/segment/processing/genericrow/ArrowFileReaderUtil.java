@@ -1,18 +1,12 @@
 package org.apache.pinot.core.segment.processing.genericrow;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
-import org.apache.arrow.vector.ipc.ReadChannel;
-import org.apache.arrow.vector.ipc.SeekableReadChannel;
-import org.apache.arrow.vector.util.Text;
-
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.channels.Channels;
 
 public class ArrowFileReaderUtil {
 

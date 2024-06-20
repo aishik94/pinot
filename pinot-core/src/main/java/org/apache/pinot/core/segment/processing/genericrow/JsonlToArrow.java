@@ -1,6 +1,10 @@
 package org.apache.pinot.core.segment.processing.genericrow;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VarCharVector;
@@ -10,11 +14,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
-//import org.apache.arrow.vector.util.VectorSchemaRootUtility;
 
-import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class JsonlToArrow {
   public static void main(String[] args) {
@@ -59,7 +59,6 @@ public class JsonlToArrow {
         writer.end();
         System.out.printf("Arrow file written to %s\n", arrowFilePath);
       }
-
     } catch (IOException e) {
       e.printStackTrace();
     } finally {
@@ -67,12 +66,3 @@ public class JsonlToArrow {
     }
   }
 }
-
-
-
-
-
-
-
-
-

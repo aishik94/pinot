@@ -1,28 +1,20 @@
 package org.apache.pinot.core.segment.processing.genericrow;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.BufferedOutputStream;
-import java.io.Closeable;
-import java.io.DataOutputStream;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
-import org.apache.arrow.algorithm.sort.FixedWidthInPlaceVectorSorter;
+import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
 import org.apache.arrow.algorithm.sort.IndexSorter;
+import org.apache.arrow.algorithm.sort.VectorValueComparator;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -36,32 +28,22 @@ import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.pinot.plugin.inputformat.json.JSONRecordReader;
-import org.apache.pinot.segment.local.utils.SchemaUtils;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
-import org.apache.arrow.algorithm.sort.VectorValueComparator;
-import org.apache.arrow.algorithm.sort.FixedWidthOutOfPlaceVectorSorter;
-import org.apache.pinot.spi.data.readers.GenericRow;
-import org.apache.pinot.spi.utils.JsonUtils;
-//import org.apache.arrow.algorithm.sort.VarBinaryOutOfPlaceVectorSorter;
 
-public class JsonNodeArrowWriter{
+
+public class JsonNodeArrowWriter {
 
   private static final int DEFAULT_BATCH_SIZE = 1000;
   private static final int DEFAULT_BATCH_SIZE_BYTES = 1048576;
-//  private final DataOutputStream _offsetStream;
+  //  private final DataOutputStream _offsetStream;
   private final FileOutputStream _dataStream;
   private final org.apache.arrow.vector.types.pojo.Schema _arrowSchema;
   private final Schema _pinotSchema;
+  List<String> _sortColumns;
   private VectorSchemaRoot _vectorSchemaRoot;
   private int _batchRowCount;
-   private File _dataFile;
-  List<String> _sortColumns;
+  private File _dataFile;
   private int suffixCount = 0;
   private int sortedSuffixCount = 0;
   private String filePrefix = "/Users/aishik/Work/rawData/outfiles/datafiles/outFile";
@@ -160,6 +142,103 @@ public class JsonNodeArrowWriter{
     return new org.apache.arrow.vector.types.pojo.Schema(arrowFields);
   }
 
+  private static void inPlaceSortAll(VectorSchemaRoot root, int[] sortIndices) {
+    for (FieldVector vector : root.getFieldVectors()) {
+      if (vector instanceof IntVector) {
+        sortIntVector((IntVector) vector, sortIndices);
+      } else if (vector instanceof VarCharVector) {
+        sortVarCharVector((VarCharVector) vector, sortIndices);
+      } else if (vector instanceof Float4Vector) {
+        sortFloat4Vector((Float4Vector) vector, sortIndices);
+      } else if (vector instanceof Float8Vector) {
+        sortFloat8Vector((Float8Vector) vector, sortIndices);
+      } else if (vector instanceof BigIntVector) {
+        sortBigIntVector((BigIntVector) vector, sortIndices);
+      } else if (vector instanceof VarBinaryVector) {
+        sortVarBinaryVector((VarBinaryVector) vector, sortIndices);
+      } else {
+        throw new UnsupportedOperationException("Unsupported vector type: " + vector.getClass().getSimpleName());
+      }
+    }
+  }
+
+  private static void sortVarBinaryVector(VarBinaryVector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    byte[][] tempArray = new byte[length][];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
+
+  private static void sortIntVector(IntVector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    int[] tempArray = new int[length];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
+
+  private static void sortVarCharVector(VarCharVector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    byte[][] tempArray = new byte[length][];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
+
+  private static void sortFloat4Vector(Float4Vector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    float[] tempArray = new float[length];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
+
+  private static void sortFloat8Vector(Float8Vector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    double[] tempArray = new double[length];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
+
+  private static void sortBigIntVector(BigIntVector vector, int[] sortIndices) {
+    int length = sortIndices.length;
+    long[] tempArray = new long[length];
+
+    for (int i = 0; i < length; i++) {
+      tempArray[i] = vector.get(sortIndices[i]);
+    }
+
+    for (int i = 0; i < length; i++) {
+      vector.set(i, tempArray[i]);
+    }
+  }
 
   public void fillVectorsFromJsonNode(VectorSchemaRoot root, JsonNode jsonNode)
       throws IOException {
@@ -290,7 +369,7 @@ public class JsonNodeArrowWriter{
     fillVectorsFromJsonNode(_vectorSchemaRoot, jsonNode);
     _vectorSchemaRoot.setRowCount(_batchRowCount);
 //    if (_currentBufferSize >= DEFAULT_BATCH_SIZE_BYTES)
-    if (_vectorSchemaRoot.getRowCount() >= 25000){
+    if (_vectorSchemaRoot.getRowCount() >= 25000) {
       String filePath = filePrefix + (suffixCount++) + fileSuffix;
       File outFile = new File(filePath);
       String sortedColumnFilePath;
@@ -342,8 +421,8 @@ public class JsonNodeArrowWriter{
 
   private void sortAllColumns() {
     // Get sort indices from sort columns
-    VectorValueComparator<VarCharVector> comparator =
-        DefaultVectorComparators.createDefaultComparator((VarCharVector) _vectorSchemaRoot.getVector(_sortColumns.get(0)));
+    VectorValueComparator<VarCharVector> comparator = DefaultVectorComparators.createDefaultComparator(
+        (VarCharVector) _vectorSchemaRoot.getVector(_sortColumns.get(0)));
     IndexSorter<VarCharVector> indexSorter = new IndexSorter<>();
     IntVector indices = new IntVector("sort_indices", _allocator);
     indices.setValueCount(_vectorSchemaRoot.getVector(_sortColumns.get(0)).getValueCount());
@@ -358,105 +437,6 @@ public class JsonNodeArrowWriter{
     }
 
     inPlaceSortAll(_vectorSchemaRoot, sortIndices);
-  }
-
-  private static void inPlaceSortAll(VectorSchemaRoot root, int[] sortIndices) {
-    for (FieldVector vector : root.getFieldVectors()) {
-      if (vector instanceof IntVector) {
-        sortIntVector((IntVector) vector, sortIndices);
-      } else if (vector instanceof VarCharVector) {
-        sortVarCharVector((VarCharVector) vector, sortIndices);
-      } else if (vector instanceof Float4Vector) {
-        sortFloat4Vector((Float4Vector) vector, sortIndices);
-      } else if (vector instanceof Float8Vector) {
-        sortFloat8Vector((Float8Vector) vector, sortIndices);
-      } else if (vector instanceof BigIntVector) {
-        sortBigIntVector((BigIntVector) vector, sortIndices);
-      } else if (vector instanceof VarBinaryVector) {
-        sortVarBinaryVector((VarBinaryVector) vector, sortIndices);
-      }
-      else {
-        throw new UnsupportedOperationException("Unsupported vector type: " + vector.getClass().getSimpleName());
-      }
-    }
-  }
-
-  private static void sortVarBinaryVector(VarBinaryVector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    byte[][] tempArray = new byte[length][];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
-  }
-
-  private static void sortIntVector(IntVector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    int[] tempArray = new int[length];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
-  }
-
-  private static void sortVarCharVector(VarCharVector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    byte[][] tempArray = new byte[length][];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
-  }
-
-  private static void sortFloat4Vector(Float4Vector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    float[] tempArray = new float[length];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
-  }
-
-  private static void sortFloat8Vector(Float8Vector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    double[] tempArray = new double[length];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
-  }
-
-  private static void sortBigIntVector(BigIntVector vector, int[] sortIndices) {
-    int length = sortIndices.length;
-    long[] tempArray = new long[length];
-
-    for (int i = 0; i < length; i++) {
-      tempArray[i] = vector.get(sortIndices[i]);
-    }
-
-    for (int i = 0; i < length; i++) {
-      vector.set(i, tempArray[i]);
-    }
   }
 
   public org.apache.arrow.vector.types.pojo.Schema getArrowSchema() {
@@ -481,4 +461,4 @@ public class JsonNodeArrowWriter{
     }
     return 0;
   }
-  }
+}

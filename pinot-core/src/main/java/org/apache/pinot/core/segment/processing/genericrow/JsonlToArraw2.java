@@ -23,6 +23,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+
 public class JsonlToArraw2 {
   public static void main(String[] args) {
 
@@ -56,20 +57,20 @@ public class JsonlToArraw2 {
 
           root.setRowCount(root.getRowCount() + 1);
           batchRowCount++;
-          System.out.printf("Processed %d rows: Current value: %s\n", batchRowCount, new String(lowCardinalityString.get(batchRowCount - 1), StandardCharsets.UTF_8));
+          System.out.printf("Processed %d rows: Current value: %s\n", batchRowCount,
+              new String(lowCardinalityString.get(batchRowCount - 1), StandardCharsets.UTF_8));
         }
       }
 
       // time taken to sort array
       List<String> arrayList = new ArrayList<>();
-      for (int i=0; i < batchRowCount; i++) {
+      for (int i = 0; i < batchRowCount; i++) {
         arrayList.add(new String((lowCardinalityString).get(i), StandardCharsets.UTF_8));
       }
 
       long startTime = System.currentTimeMillis();
 //      Collections.sort(arrayList);
       System.out.println("Time taken to sort array: " + (System.currentTimeMillis() - startTime));
-
 
       startTime = System.currentTimeMillis();
       try (IntVector indexVector = new IntVector("intVector", allocator)) {
@@ -80,8 +81,8 @@ public class JsonlToArraw2 {
         indexVector.setValueCount(batchRowCount);
         System.out.println("Time taken to create index vector: " + (System.currentTimeMillis() - startTime));
         IndexSorter<VarCharVector> sorter = new IndexSorter<>();
-        VectorValueComparator<VarCharVector> comparator = DefaultVectorComparators.createDefaultComparator(
-            lowCardinalityString);
+        VectorValueComparator<VarCharVector> comparator =
+            DefaultVectorComparators.createDefaultComparator(lowCardinalityString);
 
         sorter.sort(lowCardinalityString, indexVector, comparator);
         System.out.println("Time taken to sort index vector: " + (System.currentTimeMillis() - startTime));
@@ -90,7 +91,8 @@ public class JsonlToArraw2 {
           sortedVector.allocateNew(batchRowCount);
           for (int i = 0; i < batchRowCount; i++) {
             sortedVector.setSafe(i, (lowCardinalityString).get(indexVector.get(i)));
-//            System.out.printf("Processed %d rows: Current value: %s\n", i, new String((lowCardinalityString).get(indexVector.get(i)), StandardCharsets.UTF_8));
+//            System.out.printf("Processed %d rows: Current value: %s\n", i, new String((lowCardinalityString).get
+//            (indexVector.get(i)), StandardCharsets.UTF_8));
           }
           sortedVector.setValueCount(batchRowCount);
 
@@ -99,7 +101,6 @@ public class JsonlToArraw2 {
           root.setRowCount(batchRowCount);
           root.addVector(0, sortedVector);
         }
-
       }
 
       // Write to Arrow file
@@ -111,7 +112,6 @@ public class JsonlToArraw2 {
         System.out.printf("Arrow file written to %s\n", arrowFilePath);
       }
       root.close();
-
     } catch (IOException e) {
       e.printStackTrace();
     } finally {

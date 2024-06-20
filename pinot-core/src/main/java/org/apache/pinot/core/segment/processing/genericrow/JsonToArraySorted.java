@@ -6,7 +6,6 @@ import java.io.BufferedReader;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
@@ -65,16 +64,13 @@ public class JsonToArraySorted {
       IntVector sortedIndex = new IntVector("sortedIndex", allocator);
       VarCharVector vector = (VarCharVector) root.getVector("low_cardinality_string");
 
-      VectorValueComparator<VarCharVector> comparator = DefaultVectorComparators.createDefaultComparator(
-          vector);
+      VectorValueComparator<VarCharVector> comparator = DefaultVectorComparators.createDefaultComparator(vector);
 
       IntVector indices = new IntVector("", allocator);
       indices.setValueCount(vector.getValueCount());
       indexSorter.sort((VarCharVector) root.getVector("low_cardinality_string"), indices, comparator);
 
       IndexSorter<VarCharVector> sorter = new IndexSorter<>();
-
-
 
       // Write to Arrow file
       try (FileOutputStream fileOutputStream = new FileOutputStream(arrowFilePath);
@@ -84,7 +80,6 @@ public class JsonToArraySorted {
         writer.end();
         System.out.printf("Arrow file written to %s\n", arrowFilePath);
       }
-
     } catch (IOException e) {
       e.printStackTrace();
     } finally {

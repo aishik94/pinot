@@ -5,18 +5,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
-import org.apache.arrow.algorithm.sort.IndexSorter;
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -27,28 +23,18 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.complex.ListVector;
-import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
-import org.apache.arrow.vector.types.FloatingPointPrecision;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.pinot.spi.data.FieldSpec;
-import org.apache.pinot.spi.data.Schema;
-import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
-import org.apache.arrow.algorithm.sort.VectorValueComparator;
-//import org.apache.arrow.algorithm.sort.VarBinaryOutOfPlaceVectorSorter;
 
-public class JsonNodeArrowReader{
+
+public class JsonNodeArrowReader {
 
   private final org.apache.arrow.vector.types.pojo.Schema _arrowSchema;
   List<String> _sortColumns;
   boolean _isFirstTime = true;
-  PriorityQueue<Pair<Integer,Integer>> _priorityQueue;
-  Comparator<Pair<Integer,Integer>> _customComparator;
+  PriorityQueue<Pair<Integer, Integer>> _priorityQueue;
+  Comparator<Pair<Integer, Integer>> _customComparator;
   List<Integer> _indexList;
   String _sortedDirectoryPath = "/Users/aishik/Work/rawData/outfiles/sorted/";
   String _dataDirectoryPath = "/Users/aishik/Work/rawData/outfiles/datafiles/";
@@ -60,17 +46,16 @@ public class JsonNodeArrowReader{
   File _outputFile;
   VectorSchemaRoot _vectorSchemaRoot;
   RootAllocator _rootAllocator;
+  List<ArrowFileReader> _arrowFileReaders;
+  List<FileInputStream> _fileInputStreams;
 
-
-  public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema,
-      List<String> sortColumns)
+  public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema, List<String> sortColumns)
       throws Exception {
 
     _arrowSchema = arrowSchema;
     _sortColumns = sortColumns;
     _priorityQueue = new PriorityQueue<>(getCustomComparator());
     _fileList = getFileListFromDirectoryPath(_sortedDirectoryPath);
-    _customComparator = getCustomComparator();
     _indexList = new ArrayList<>(_fileList.size());
     for (int i = 0; i < _fileList.size(); i++) {
       _indexList.add(0);
@@ -79,12 +64,35 @@ public class JsonNodeArrowReader{
     _outputFile = new File(_finalOutputPath + "finalOutput.arrow");
     _rootAllocator = new RootAllocator(512 * 1024 * 1024);
     _vectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    _arrowFileReaders = new ArrayList<>();
+    initializeArrowFileReaders();
+    _customComparator = getCustomComparator();
     initializeMinHeap();
   }
 
   public void initializeMinHeap() {
     for (int i = 0; i < _fileList.size(); i++) {
       addToPriorityQueue(i, 0);
+    }
+  }
+
+  private void initializeFileInputStreams() {
+    _fileInputStreams = new ArrayList<>();
+    for (File file : _fileList) {
+      try {
+        FileInputStream fileInputStream = new FileInputStream(file);
+        _fileInputStreams.add(fileInputStream);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  private void initializeArrowFileReaders() {
+    initializeFileInputStreams();
+    for (FileInputStream fileInputStream : _fileInputStreams) {
+      ArrowFileReader reader = new ArrowFileReader(fileInputStream.getChannel(), _rootAllocator);
+      _arrowFileReaders.add(reader);
     }
   }
 
@@ -100,17 +108,14 @@ public class JsonNodeArrowReader{
     return fileList;
   }
 
-  Comparator<Pair<Integer,Integer>> getCustomComparator() {
+  Comparator<Pair<Integer, Integer>> getCustomComparator() {
     return (o1, o2) -> {
 
       // Get chunk ID
-      String filePath1 = _fileList.get(o1.left()).toString();
-      String filePath2 = _fileList.get(o2.left()).toString();
       String cmp1 = "";
       String cmp2 = "";
-      try (BufferAllocator rootAllocator = new RootAllocator();
-          FileInputStream fileInputStream = new FileInputStream(filePath1);
-          ArrowFileReader reader = new ArrowFileReader(fileInputStream.getChannel(), rootAllocator)) {
+      try {
+        ArrowFileReader reader = _arrowFileReaders.get(o1.left());
         ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
         reader.loadRecordBatch(arrowBlock);
         VectorSchemaRoot vectorSchemaRoot1 = reader.getVectorSchemaRoot();
@@ -119,16 +124,13 @@ public class JsonNodeArrowReader{
       } catch (IOException e) {
         e.printStackTrace();
       }
-
-      try (BufferAllocator rootAllocator = new RootAllocator();
-          FileInputStream fileInputStream = new FileInputStream(filePath2);
-          ArrowFileReader reader = new ArrowFileReader(fileInputStream.getChannel(), rootAllocator)) {
-//        System.out.println("Record batches in file: " + reader.getRecordBlocks().size());
+      try {
+        ArrowFileReader reader = _arrowFileReaders.get(o2.left());
         ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
         reader.loadRecordBatch(arrowBlock);
-        VectorSchemaRoot vectorSchemaRoot2 = reader.getVectorSchemaRoot();
-        VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot2.getVector(sortColumnName);
-        cmp2 = sortColumn.getObject(o2.right()).toString();
+        VectorSchemaRoot vectorSchemaRoot1 = reader.getVectorSchemaRoot();
+        VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot1.getVector(sortColumnName);
+        cmp1 = sortColumn.getObject(o2.right()).toString();
       } catch (IOException e) {
         e.printStackTrace();
       }
@@ -140,10 +142,10 @@ public class JsonNodeArrowReader{
     _priorityQueue.add(Pair.of(chunkId, index));
   }
 
-  private Pair<Integer,Integer> extractMinFromPriorityQueue() {
+  private Pair<Integer, Integer> extractMinFromPriorityQueue() {
     Pair<Integer, Integer> element = _priorityQueue.poll();
     if (element.right() < 24999) {
-        addToPriorityQueue(element.left(), element.right() + 1);
+      addToPriorityQueue(element.left(), element.right() + 1);
     }
 //    System.out.println("Extracted element: " + element.left() + " " + element.right());
     return element;
@@ -194,7 +196,7 @@ public class JsonNodeArrowReader{
     }
   }
 
-  public void readAllRecordsAndDumpToFile(){
+  public void readAllRecordsAndDumpToFile() {
     long startTime = System.currentTimeMillis();
     while (_isFirstTime || !_priorityQueue.isEmpty()) {
       addRecordToVectorSchemaRoot();

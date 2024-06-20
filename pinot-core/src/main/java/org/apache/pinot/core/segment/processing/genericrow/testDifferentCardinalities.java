@@ -1,29 +1,15 @@
 package org.apache.pinot.core.segment.processing.genericrow;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.unimi.dsi.fastutil.Arrays;
-import java.io.BufferedReader;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
 import org.apache.arrow.algorithm.sort.IndexSorter;
-import org.apache.arrow.algorithm.sort.VectorValueComparator;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.VectorUnloader;
-import org.apache.arrow.vector.ipc.ArrowFileWriter;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.arrow.vector.types.pojo.Schema;
+
 
 public class testDifferentCardinalities {
 
@@ -37,7 +23,7 @@ public class testDifferentCardinalities {
     List<Integer> valueList = new ArrayList<>();
 
     for (int i = 0; i < elementCount; i++) {
-      valueList.add(i, i % (int)Math.round((elementCount * cardinalityPercentage / 100)));
+      valueList.add(i, i % (int) Math.round((elementCount * cardinalityPercentage / 100)));
     }
     Collections.shuffle(valueList);
 
@@ -54,7 +40,7 @@ public class testDifferentCardinalities {
     List<Integer> valueList = new ArrayList<>();
 
     for (int i = 0; i < elementCount; i++) {
-      valueList.add(i, i % (int)Math.round((elementCount * cardinalityPercentage / 100)));
+      valueList.add(i, i % (int) Math.round((elementCount * cardinalityPercentage / 100)));
     }
     Collections.shuffle(valueList);
 
@@ -66,7 +52,6 @@ public class testDifferentCardinalities {
     String arrowFilePath = "/Users/aishik/Work/rawData/output_sorted_int.arrow";
 
     try (BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
-
 
       DefaultVectorComparators.IntComparator comparator = new DefaultVectorComparators.IntComparator();
       IndexSorter<IntVector> indexSorter = new IndexSorter<>();
@@ -112,7 +97,6 @@ public class testDifferentCardinalities {
         v.set(b, temp);
       });
       System.out.println("Time taken to sort array: " + (System.currentTimeMillis() - startTime));
-
     }
   }
 }
