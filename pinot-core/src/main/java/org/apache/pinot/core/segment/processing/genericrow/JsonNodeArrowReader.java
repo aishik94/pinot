@@ -7,13 +7,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -60,6 +63,8 @@ public class JsonNodeArrowReader {
   List<ArrowFileReader> _arrowFileReaders;
   List<FileInputStream> _fileInputStreams;
   List<VectorSchemaRoot> _vectorSchemaRoots;
+  List<VectorSchemaRoot> _vectorSchemaRootsForData;
+  List<ArrowFileReader> _dataReaderList;
 
   public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema, List<String> sortColumns)
       throws Exception {
@@ -77,9 +82,13 @@ public class JsonNodeArrowReader {
     _rootAllocator = new RootAllocator(512 * 1024 * 1024);
     _vectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
     _arrowFileReaders = new ArrayList<>();
-    initializeArrowFileReaders();
+    _dataReaderList = new ArrayList<>();
+//    initializeArrowFileReaders();
+    initialiseNewReaders();
+    initialiseNewReadersForData();
 //    test();
     initializeVectorSchemaRoots();
+    initializeVectorSchemaRootsForData();
     _customComparator = getCustomComparator();
     initializeMinHeap();
   }
@@ -93,6 +102,18 @@ public class JsonNodeArrowReader {
       reader.loadRecordBatch(arrowBlock);
       VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
       _vectorSchemaRoots.add(vectorSchemaRoot);
+    }
+  }
+
+  private void initializeVectorSchemaRootsForData()
+      throws IOException {
+    _vectorSchemaRootsForData = new ArrayList<>();
+    for (int i = 0; i < _dataFileList.size(); i++) {
+      ArrowFileReader reader = _dataReaderList.get(i);
+      ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
+      reader.loadRecordBatch(arrowBlock);
+      VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
+      _vectorSchemaRootsForData.add(vectorSchemaRoot);
     }
   }
 
@@ -151,6 +172,222 @@ public class JsonNodeArrowReader {
 //
 //  }
 
+  private void initialiseNewReaders() {
+    for (File file : _fileList) {
+      Path filePath = file.toPath();
+      try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ)) {
+        // Memory-map the file
+        MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+
+        // Wrap the MappedByteBuffer in a SeekableByteChannel
+        SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
+          private int position = 0;
+
+          @Override
+          public int read(ByteBuffer dst) throws IOException {
+            int remaining = mappedByteBuffer.remaining();
+            if (remaining == 0) {
+              return -1;
+            }
+            int length = Math.min(dst.remaining(), remaining);
+            byte[] data = new byte[length];
+            mappedByteBuffer.get(data);
+            dst.put(data);
+            return length;
+          }
+
+          @Override
+          public int write(ByteBuffer src) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public long position() throws IOException {
+            return position;
+          }
+
+          @Override
+          public SeekableByteChannel position(long newPosition) throws IOException {
+            mappedByteBuffer.position((int) newPosition);
+            position = (int) newPosition;
+            return this;
+          }
+
+          @Override
+          public long size() throws IOException {
+            return mappedByteBuffer.capacity();
+          }
+
+          @Override
+          public SeekableByteChannel truncate(long size) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public boolean isOpen() {
+            return true;
+          }
+
+          @Override
+          public void close() throws IOException {
+            // No-op
+          }
+        };
+
+        // Create the ArrowFileReader with the SeekableByteChannel
+        ArrowFileReader reader = new ArrowFileReader(seekableByteChannel, _rootAllocator);
+        _arrowFileReaders.add(reader);
+    } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
+  private void initialiseNewReadersForData() {
+    for (File file : _dataFileList) {
+      Path filePath = file.toPath();
+      try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ)) {
+        // Memory-map the file
+        MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+
+        // Wrap the MappedByteBuffer in a SeekableByteChannel
+        SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
+          private int position = 0;
+
+          @Override
+          public int read(ByteBuffer dst) throws IOException {
+            int remaining = mappedByteBuffer.remaining();
+            if (remaining == 0) {
+              return -1;
+            }
+            int length = Math.min(dst.remaining(), remaining);
+            byte[] data = new byte[length];
+            mappedByteBuffer.get(data);
+            dst.put(data);
+            return length;
+          }
+
+          @Override
+          public int write(ByteBuffer src) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public long position() throws IOException {
+            return position;
+          }
+
+          @Override
+          public SeekableByteChannel position(long newPosition) throws IOException {
+            mappedByteBuffer.position((int) newPosition);
+            position = (int) newPosition;
+            return this;
+          }
+
+          @Override
+          public long size() throws IOException {
+            return mappedByteBuffer.capacity();
+          }
+
+          @Override
+          public SeekableByteChannel truncate(long size) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public boolean isOpen() {
+            return true;
+          }
+
+          @Override
+          public void close() throws IOException {
+            // No-op
+          }
+        };
+
+        // Create the ArrowFileReader with the SeekableByteChannel
+        ArrowFileReader reader = new ArrowFileReader(seekableByteChannel, _rootAllocator);
+        _dataReaderList.add(reader);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
+
+  private Pair<ArrowFileReader, VarCharVector> createReaderAndSortColumn(String filePath) {
+    try (FileChannel fileChannel = FileChannel.open(Paths.get(filePath), StandardOpenOption.READ)) {
+      // Memory-map the file
+      MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+
+      // Wrap the MappedByteBuffer in a SeekableByteChannel
+      SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
+        private int position = 0;
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException {
+          int remaining = mappedByteBuffer.remaining();
+          if (remaining == 0) {
+            return -1;
+          }
+          int length = Math.min(dst.remaining(), remaining);
+          byte[] data = new byte[length];
+          mappedByteBuffer.get(data);
+          dst.put(data);
+          return length;
+        }
+
+        @Override
+        public int write(ByteBuffer src) throws IOException {
+          throw new UnsupportedOperationException("Read-only channel");
+        }
+
+        @Override
+        public long position() throws IOException {
+          return position;
+        }
+
+        @Override
+        public SeekableByteChannel position(long newPosition) throws IOException {
+          mappedByteBuffer.position((int) newPosition);
+          position = (int) newPosition;
+          return this;
+        }
+
+        @Override
+        public long size() throws IOException {
+          return mappedByteBuffer.capacity();
+        }
+
+        @Override
+        public SeekableByteChannel truncate(long size) throws IOException {
+          throw new UnsupportedOperationException("Read-only channel");
+        }
+
+        @Override
+        public boolean isOpen() {
+          return true;
+        }
+
+        @Override
+        public void close() throws IOException {
+          // No-op
+        }
+      };
+
+      // Create the ArrowFileReader with the SeekableByteChannel
+      ArrowFileReader reader = new ArrowFileReader(seekableByteChannel, _rootAllocator);
+      ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
+      reader.loadRecordBatch(arrowBlock);
+      VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
+      VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot.getVector(sortColumnName);
+      return Pair.of(reader, sortColumn);
+    } catch (IOException e) {
+      e.printStackTrace();
+      return null;
+    }
+  }
+
   private void initializeFileInputStreams() {
     _fileInputStreams = new ArrayList<>();
     for (File file : _fileList) {
@@ -166,7 +403,8 @@ public class JsonNodeArrowReader {
   private void initializeArrowFileReaders() {
     initializeFileInputStreams();
     for (FileInputStream fileInputStream : _fileInputStreams) {
-      ArrowFileReader reader = new ArrowFileReader(fileInputStream.getChannel(), _rootAllocator);
+      SeekableReadChannel readChannel = new SeekableReadChannel(fileInputStream.getChannel());
+      ArrowFileReader reader = new ArrowFileReader(readChannel, _rootAllocator);
       _arrowFileReaders.add(reader);
     }
   }
@@ -215,51 +453,42 @@ public class JsonNodeArrowReader {
     int chunkId = element.left();
     int index = element.right();
     String filePath = _dataFileList.get(chunkId).toString();
-    try (BufferAllocator rootAllocator1 = new RootAllocator();
-        FileInputStream fileInputStream = new FileInputStream(filePath);
-        ArrowFileReader reader = new ArrowFileReader(fileInputStream.getChannel(), rootAllocator1)) {
-//      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());
-      ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
-      reader.loadRecordBatch(arrowBlock);
-      VectorSchemaRoot vectorSchemaRoot1 = reader.getVectorSchemaRoot();
-      for (FieldVector fieldVector : vectorSchemaRoot1.getFieldVectors()) {
-        FieldVector newFieldVector = _vectorSchemaRoot.getVector(fieldVector.getName());
-        newFieldVector.setInitialCapacity(newFieldVector.getValueCount() + 1);
-        newFieldVector.setValueCount(newFieldVector.getValueCount() + 1);
-        // set the value of the index in the new vector based on vector type
-        if (fieldVector instanceof IntVector) {
-          ((IntVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((IntVector) fieldVector).get(index));
-        } else if (fieldVector instanceof BigIntVector) {
-          ((BigIntVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((BigIntVector) fieldVector).get(index));
-        } else if (fieldVector instanceof Float4Vector) {
-          ((Float4Vector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((Float4Vector) fieldVector).get(index));
-        } else if (fieldVector instanceof Float8Vector) {
-          ((Float8Vector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((Float8Vector) fieldVector).get(index));
-        } else if (fieldVector instanceof VarCharVector) {
-          ((VarCharVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((VarCharVector) fieldVector).getObject(index));
-        } else if (fieldVector instanceof VarBinaryVector) {
-          ((VarBinaryVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
-              ((VarBinaryVector) fieldVector).getObject(index));
-        } else {
-          throw new UnsupportedOperationException("Unsupported vector type");
-        }
+    //      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());;
+    for (FieldVector fieldVector : _vectorSchemaRootsForData.get(chunkId).getFieldVectors()) {
+      FieldVector newFieldVector = _vectorSchemaRoot.getVector(fieldVector.getName());
+      newFieldVector.setInitialCapacity(newFieldVector.getValueCount() + 1);
+      newFieldVector.setValueCount(newFieldVector.getValueCount() + 1);
+      // set the value of the index in the new vector based on vector type
+      if (fieldVector instanceof IntVector) {
+        ((IntVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((IntVector) fieldVector).get(index));
+      } else if (fieldVector instanceof BigIntVector) {
+        ((BigIntVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((BigIntVector) fieldVector).get(index));
+      } else if (fieldVector instanceof Float4Vector) {
+        ((Float4Vector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((Float4Vector) fieldVector).get(index));
+      } else if (fieldVector instanceof Float8Vector) {
+        ((Float8Vector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((Float8Vector) fieldVector).get(index));
+      } else if (fieldVector instanceof VarCharVector) {
+        ((VarCharVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((VarCharVector) fieldVector).getObject(index));
+      } else if (fieldVector instanceof VarBinaryVector) {
+        ((VarBinaryVector) newFieldVector).setSafe(newFieldVector.getValueCount() - 1,
+            ((VarBinaryVector) fieldVector).getObject(index));
+      } else {
+        throw new UnsupportedOperationException("Unsupported vector type");
       }
-      _vectorSchemaRoot.setRowCount(_vectorSchemaRoot.getRowCount() + 1);
-    } catch (IOException e) {
-      e.printStackTrace();
     }
+    _vectorSchemaRoot.setRowCount(_vectorSchemaRoot.getRowCount() + 1);
   }
 
   public void readAllRecordsAndDumpToFile()
       throws IOException {
     AsyncProfiler profiler = AsyncProfiler.getInstance();
-    String profilerFileName = "ArrowSorterCpuUnsafe";
-    profiler.execute(String.format("start,event=cpu,file=%s.html", profilerFileName));
+    String profilerFileName = "ArrowSorterWallUnsafeNew";
+    profiler.execute(String.format("start,event=wall,file=%s.html", profilerFileName));
     long startTime = System.currentTimeMillis();
     while (_isFirstTime || !_priorityQueue.isEmpty()) {
       addRecordToVectorSchemaRoot();
