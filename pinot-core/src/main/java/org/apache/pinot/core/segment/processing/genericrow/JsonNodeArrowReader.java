@@ -1,10 +1,15 @@
 package org.apache.pinot.core.segment.processing.genericrow;
 
 import it.unimi.dsi.fastutil.Pair;
+import java.io.BufferedInputStream;
+import java.io.RandomAccessFile;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
+import one.profiler.AsyncProfiler;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -25,7 +32,11 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
+import org.apache.arrow.vector.ipc.ReadChannel;
+import org.apache.arrow.vector.ipc.SeekableReadChannel;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
+import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
+import org.apache.commons.io.input.MemoryMappedFileInputStream;
 
 
 public class JsonNodeArrowReader {
@@ -48,6 +59,7 @@ public class JsonNodeArrowReader {
   RootAllocator _rootAllocator;
   List<ArrowFileReader> _arrowFileReaders;
   List<FileInputStream> _fileInputStreams;
+  List<VectorSchemaRoot> _vectorSchemaRoots;
 
   public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema, List<String> sortColumns)
       throws Exception {
@@ -66,8 +78,22 @@ public class JsonNodeArrowReader {
     _vectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
     _arrowFileReaders = new ArrayList<>();
     initializeArrowFileReaders();
+//    test();
+    initializeVectorSchemaRoots();
     _customComparator = getCustomComparator();
     initializeMinHeap();
+  }
+
+  private void initializeVectorSchemaRoots()
+      throws IOException {
+    _vectorSchemaRoots = new ArrayList<>();
+    for (int i = 0; i < _fileList.size(); i++) {
+      ArrowFileReader reader = _arrowFileReaders.get(i);
+      ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
+      reader.loadRecordBatch(arrowBlock);
+      VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
+      _vectorSchemaRoots.add(vectorSchemaRoot);
+    }
   }
 
   public void initializeMinHeap() {
@@ -75,6 +101,55 @@ public class JsonNodeArrowReader {
       addToPriorityQueue(i, 0);
     }
   }
+
+  private void test() {
+    for (File file : _fileList) {
+      try (MemoryMappedFileInputStream memoryMappedFileInputStream = MemoryMappedFileInputStream.builder().setFile(file).get();
+          BufferedInputStream bufferedInputStream = new BufferedInputStream(memoryMappedFileInputStream)) {
+        // Create Arrow reader from the mapped byte buffer
+        ArrowFileReader reader = new ArrowFileReader(
+            (SeekableReadChannel) Channels.newChannel(memoryMappedFileInputStream), _rootAllocator);
+        _arrowFileReaders.add(reader);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
+//  private void fileInputStreamMmap() {
+//    for (File fileNew : _fileList) {
+//      try (RandomAccessFile file = new RandomAccessFile(fileNew, "r");
+//          FileChannel fileChannel = file.getChannel()) {
+//        long fileSize = fileChannel.size();
+//        MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
+//        // Create a ReadChannel from the MappedByteBuffer
+//        ReadChannel readChannel = new SeekableReadChannel() {
+//          @Override
+//          public long readFully(ArrowBuf arrowBuf, long length) throws IOException {
+//            long bufferSize = arrowBuf.capacity();
+//            if (mappedByteBuffer.remaining() >= bufferSize) {
+//              mappedByteBuffer.get(arrowBuf.nioBuffer().array());
+//              return bufferSize;
+//            } else {
+//              return -1; // End of file
+//            }
+//          }
+//
+//          @Override
+//          public void close() throws IOException {
+//            // No need to close the MappedByteBuffer
+//          }
+//        };
+//
+//        // Create Arrow reader from the mapped byte buffer
+//        ArrowFileReader reader = new ArrowFileReader(new ByteArrayReadableSeekableByteChannel(mappedByteBuffer), _rootAllocator);
+//        _arrowFileReaders.add(reader);
+//      } catch (IOException e) {
+//        throw new RuntimeException(e);
+//      }
+//    }
+//
+//  }
 
   private void initializeFileInputStreams() {
     _fileInputStreams = new ArrayList<>();
@@ -114,26 +189,10 @@ public class JsonNodeArrowReader {
       // Get chunk ID
       String cmp1 = "";
       String cmp2 = "";
-      try {
-        ArrowFileReader reader = _arrowFileReaders.get(o1.left());
-        ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
-        reader.loadRecordBatch(arrowBlock);
-        VectorSchemaRoot vectorSchemaRoot1 = reader.getVectorSchemaRoot();
-        VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot1.getVector(sortColumnName);
-        cmp1 = sortColumn.getObject(o1.right()).toString();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-      try {
-        ArrowFileReader reader = _arrowFileReaders.get(o2.left());
-        ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
-        reader.loadRecordBatch(arrowBlock);
-        VectorSchemaRoot vectorSchemaRoot1 = reader.getVectorSchemaRoot();
-        VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot1.getVector(sortColumnName);
-        cmp1 = sortColumn.getObject(o2.right()).toString();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
+      VarCharVector sortColumn1 = (VarCharVector)  _vectorSchemaRoots.get(o1.left()).getVector(sortColumnName);
+      cmp1 = sortColumn1.getObject(o1.right()).toString();
+      VarCharVector sortColumn2 = (VarCharVector)  _vectorSchemaRoots.get(o2.left()).getVector(sortColumnName);
+      cmp2 = sortColumn2.getObject(o2.right()).toString();
       return cmp1.compareTo(cmp2);
     };
   }
@@ -196,13 +255,18 @@ public class JsonNodeArrowReader {
     }
   }
 
-  public void readAllRecordsAndDumpToFile() {
+  public void readAllRecordsAndDumpToFile()
+      throws IOException {
+    AsyncProfiler profiler = AsyncProfiler.getInstance();
+    String profilerFileName = "ArrowSorterCpuUnsafe";
+    profiler.execute(String.format("start,event=cpu,file=%s.html", profilerFileName));
     long startTime = System.currentTimeMillis();
     while (_isFirstTime || !_priorityQueue.isEmpty()) {
       addRecordToVectorSchemaRoot();
       _isFirstTime = false;
     }
     long endTime = System.currentTimeMillis();
+    profiler.execute(String.format("stop,file=%s.html", profilerFileName));
     System.out.println("Time taken to read all records: " + (endTime - startTime) + " ms");
     try (FileOutputStream fileOutputStream = new FileOutputStream(_outputFile);
         ArrowFileWriter arrowFileWriter = new ArrowFileWriter(_vectorSchemaRoot, null, fileOutputStream.getChannel())) {
