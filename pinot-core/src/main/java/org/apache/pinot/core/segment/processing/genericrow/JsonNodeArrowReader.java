@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -65,6 +66,8 @@ public class JsonNodeArrowReader {
   List<VectorSchemaRoot> _vectorSchemaRoots;
   List<VectorSchemaRoot> _vectorSchemaRootsForData;
   List<ArrowFileReader> _dataReaderList;
+  int suffix = 0;
+  List<String> _sortColumnStringsToCheck = new ArrayList<>();
 
   public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema, List<String> sortColumns)
       throws Exception {
@@ -415,6 +418,7 @@ public class JsonNodeArrowReader {
       for (Path path : directoryStream) {
         fileList.add(path.toFile());
       }
+      Collections.sort(fileList);
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -454,9 +458,9 @@ public class JsonNodeArrowReader {
     int index = element.right();
     String filePath = _dataFileList.get(chunkId).toString();
     //      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());;
+    _sortColumnStringsToCheck.add(_vectorSchemaRoots.get(chunkId).getVector(sortColumnName).getObject(index).toString());
     for (FieldVector fieldVector : _vectorSchemaRootsForData.get(chunkId).getFieldVectors()) {
       FieldVector newFieldVector = _vectorSchemaRoot.getVector(fieldVector.getName());
-      newFieldVector.setInitialCapacity(newFieldVector.getValueCount() + 1);
       newFieldVector.setValueCount(newFieldVector.getValueCount() + 1);
       // set the value of the index in the new vector based on vector type
       if (fieldVector instanceof IntVector) {
@@ -482,6 +486,29 @@ public class JsonNodeArrowReader {
       }
     }
     _vectorSchemaRoot.setRowCount(_vectorSchemaRoot.getRowCount() + 1);
+    if (_vectorSchemaRoot.getRowCount() == 25000) {
+      writeToFile();
+      clearVectorSchemaRoot();
+      _vectorSchemaRoot.setRowCount(0);
+    }
+  }
+  private void clearVectorSchemaRoot() {
+    for (FieldVector fieldVector : _vectorSchemaRoot.getFieldVectors()) {
+      fieldVector.clear();
+      _vectorSchemaRoot.clear();
+    }
+  }
+
+  private void writeToFile() {
+    File outputFile = new File(_finalOutputPath + "finalOutput" + suffix++ + ".arrow");
+    try (FileOutputStream fileOutputStream = new FileOutputStream(outputFile);
+        ArrowFileWriter arrowFileWriter = new ArrowFileWriter(_vectorSchemaRoot, null, fileOutputStream.getChannel())) {
+      arrowFileWriter.start();
+      arrowFileWriter.writeBatch();
+      arrowFileWriter.end();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
 
   public void readAllRecordsAndDumpToFile()
@@ -497,13 +524,13 @@ public class JsonNodeArrowReader {
     long endTime = System.currentTimeMillis();
     profiler.execute(String.format("stop,file=%s.html", profilerFileName));
     System.out.println("Time taken to read all records: " + (endTime - startTime) + " ms");
-    try (FileOutputStream fileOutputStream = new FileOutputStream(_outputFile);
-        ArrowFileWriter arrowFileWriter = new ArrowFileWriter(_vectorSchemaRoot, null, fileOutputStream.getChannel())) {
-      arrowFileWriter.start();
-      arrowFileWriter.writeBatch();
-      arrowFileWriter.end();
-    } catch (IOException e) {
-      e.printStackTrace();
+
+    // check if sortcolumns strings are lexicographically sorted
+    for (int i = 0; i < _sortColumnStringsToCheck.size() - 1; i++) {
+      if (_sortColumnStringsToCheck.get(i).compareTo(_sortColumnStringsToCheck.get(i + 1)) > 0) {
+        System.out.println("Not sorted");
+        break;
+      }
     }
   }
 }
