@@ -458,7 +458,7 @@ public class JsonNodeArrowReader {
     int index = element.right();
     String filePath = _dataFileList.get(chunkId).toString();
     //      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());;
-    _sortColumnStringsToCheck.add(_vectorSchemaRoots.get(chunkId).getVector(sortColumnName).getObject(index).toString());
+    _sortColumnStringsToCheck.add(_vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString());
     for (FieldVector fieldVector : _vectorSchemaRootsForData.get(chunkId).getFieldVectors()) {
       FieldVector newFieldVector = _vectorSchemaRoot.getVector(fieldVector.getName());
       newFieldVector.setValueCount(newFieldVector.getValueCount() + 1);
@@ -494,13 +494,22 @@ public class JsonNodeArrowReader {
   }
   private void clearVectorSchemaRoot() {
     for (FieldVector fieldVector : _vectorSchemaRoot.getFieldVectors()) {
-      fieldVector.clear();
-      _vectorSchemaRoot.clear();
+      fieldVector.close();
     }
+    _vectorSchemaRoot.close();
+  }
+
+  // Just exatract the high_cardinality_string column from the data files
+  public void extractSortColumnFromDataFiles() {
+    Pair<Integer, Integer> element = extractMinFromPriorityQueue();
+    int chunkId = element.left();
+    int index = element.right();
+    String string = _vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString();
+    _sortColumnStringsToCheck.add(string);
   }
 
   private void writeToFile() {
-    File outputFile = new File(_finalOutputPath + "finalOutput" + suffix++ + ".arrow");
+    File outputFile = new File(_finalOutputPath + "outfile_" + (suffix++) + ".arrow");
     try (FileOutputStream fileOutputStream = new FileOutputStream(outputFile);
         ArrowFileWriter arrowFileWriter = new ArrowFileWriter(_vectorSchemaRoot, null, fileOutputStream.getChannel())) {
       arrowFileWriter.start();
@@ -511,18 +520,20 @@ public class JsonNodeArrowReader {
     }
   }
 
+
   public void readAllRecordsAndDumpToFile()
       throws IOException {
-    AsyncProfiler profiler = AsyncProfiler.getInstance();
-    String profilerFileName = "ArrowSorterWallUnsafeNew";
-    profiler.execute(String.format("start,event=wall,file=%s.html", profilerFileName));
+//    AsyncProfiler profiler = AsyncProfiler.getInstance();
+//    String profilerFileName = "ArrowSorterWallUnsafeNew";
+//    profiler.execute(String.format("start,event=wall,file=%s.html", profilerFileName));
     long startTime = System.currentTimeMillis();
     while (_isFirstTime || !_priorityQueue.isEmpty()) {
       addRecordToVectorSchemaRoot();
+//      extractSortColumnFromDataFiles();
       _isFirstTime = false;
     }
     long endTime = System.currentTimeMillis();
-    profiler.execute(String.format("stop,file=%s.html", profilerFileName));
+//    profiler.execute(String.format("stop,file=%s.html", profilerFileName));
     System.out.println("Time taken to read all records: " + (endTime - startTime) + " ms");
 
     // check if sortcolumns strings are lexicographically sorted

@@ -378,7 +378,7 @@ public class JsonNodeArrowWriter {
         sortAllColumns();
 
         // Dump the sorted columns in separate files for easier access during reading.
-        sortedColumnFilePath = sortedFilePrefix + (sortedSuffixCount++) + "_sorted" + fileSuffix;
+        sortedColumnFilePath = sortedFilePrefix + (sortedSuffixCount++) + fileSuffix;
         sortedColumnFile = new File(sortedColumnFilePath);
         List<FieldVector> sortColumnsList = new ArrayList<>();
         List<Field> sortFields = new ArrayList<>();
