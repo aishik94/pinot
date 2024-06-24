@@ -20,82 +20,89 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
 
+import static java.lang.System.exit;
+
 
 public class testClass {
+
+  public static RootAllocator _rootAllocator = new RootAllocator(Long.MAX_VALUE);
 
   public static VectorSchemaRoot getVectorSchemaRootForFile(File file)
       throws IOException {
     ArrowFileReader reader = getArrowReaderForFile(file);
     ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
     reader.loadRecordBatch(arrowBlock);
+//    VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
     return reader.getVectorSchemaRoot();
   }
 
   public static ArrowFileReader getArrowReaderForFile(File file)
       throws IOException {
     Path filePath = file.toPath();
-    FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ);
-    MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
-    SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
-      private int position = 0;
+    try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ)) {
+      // Memory-map the file
+      MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
 
-      @Override
-      public int read(ByteBuffer dst)
-          throws IOException {
-        int remaining = mappedByteBuffer.remaining();
-        if (remaining == 0) {
-          return -1;
+      // Wrap the MappedByteBuffer in a SeekableByteChannel
+      SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
+        private int position = 0;
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException {
+          int remaining = mappedByteBuffer.remaining();
+          if (remaining == 0) {
+            return -1;
+          }
+          int length = Math.min(dst.remaining(), remaining);
+          byte[] data = new byte[length];
+          mappedByteBuffer.get(data);
+          dst.put(data);
+          return length;
         }
-        int length = Math.min(dst.remaining(), remaining);
-        for (int i = 0; i < length; i++) {
-          dst.put(mappedByteBuffer.get());
+
+        @Override
+        public int write(ByteBuffer src) throws IOException {
+          throw new UnsupportedOperationException("Read-only channel");
         }
-        return length;
-      }
 
-      @Override
-      public int write(ByteBuffer src)
-          throws IOException {
-        throw new UnsupportedOperationException();
-      }
+        @Override
+        public long position() throws IOException {
+          return position;
+        }
 
-      @Override
-      public long position()
-          throws IOException {
-        return position;
-      }
+        @Override
+        public SeekableByteChannel position(long newPosition) throws IOException {
+          mappedByteBuffer.position((int) newPosition);
+          position = (int) newPosition;
+          return this;
+        }
 
-      @Override
-      public SeekableByteChannel position(long newPosition)
-          throws IOException {
-        position = (int) newPosition;
-        return this;
-      }
+        @Override
+        public long size() throws IOException {
+          return mappedByteBuffer.capacity();
+        }
 
-      @Override
-      public long size()
-          throws IOException {
-        return mappedByteBuffer.capacity();
-      }
+        @Override
+        public SeekableByteChannel truncate(long size) throws IOException {
+          throw new UnsupportedOperationException("Read-only channel");
+        }
 
-      @Override
-      public SeekableByteChannel truncate(long size)
-          throws IOException {
-        throw new UnsupportedOperationException();
-      }
+        @Override
+        public boolean isOpen() {
+          return true;
+        }
 
-      @Override
-      public boolean isOpen() {
-        return true;
-      }
+        @Override
+        public void close() throws IOException {
+          // No-op
+        }
+      };
 
-      @Override
-      public void close()
-          throws IOException {
-        // Do nothing
-      }
-    };
-    return new ArrowFileReader(seekableByteChannel, new RootAllocator(Long.MAX_VALUE));
+      // Create the ArrowFileReader with the SeekableByteChannel
+      return new ArrowFileReader(seekableByteChannel, _rootAllocator);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
 
@@ -112,28 +119,30 @@ public class testClass {
     String lastString = "";
 
     for (int i = 0; i < numFiles; i++) {
-      File currentFile = file.listFiles()[i];
+      File currentFile = new File(filePath + "outfile_" + i + ".arrow");
       try {
         VectorSchemaRoot vectorSchemaRoot = getVectorSchemaRootForFile(currentFile);
         VarCharVector varCharVector = (VarCharVector) vectorSchemaRoot.getVector("high_cardinality_string");
-        String[] strings = new String[vectorSchemaRoot.getRowCount()];
 
         // Check if the vector is lexicographically sorted.
         for (int j = 0; j < vectorSchemaRoot.getRowCount() - 1; j++) {
-          if (!isFirstBatch && varCharVector.get(j).toString().compareTo(lastString) < 0) {
+          if (!isFirstBatch && varCharVector.getObject(j).toString().compareTo(lastString) < 0) {
             System.out.println("Not sorted");
+            exit(1);
             break;
           }
-          if (varCharVector.get(i).toString().compareTo(varCharVector.get(i + 1).toString()) > 0){
+          if (varCharVector.getObject(j).toString().compareTo(varCharVector.getObject(j + 1).toString()) > 0){
             System.out.println("Not sorted");
+            exit(1);
             break;
           }
         }
-        lastString = varCharVector.get(vectorSchemaRoot.getRowCount() - 1).toString();
+        lastString = varCharVector.getObject(vectorSchemaRoot.getRowCount() - 1).toString();
         isFirstBatch = false;
       } catch (IOException e) {
         e.printStackTrace();
       }
     }
+    System.out.println("Sorted");
   }
 }

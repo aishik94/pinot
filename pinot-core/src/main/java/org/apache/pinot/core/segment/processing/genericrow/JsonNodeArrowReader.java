@@ -472,7 +472,7 @@ public class JsonNodeArrowReader {
     int index = element.right();
     String filePath = _dataFileList.get(chunkId).toString();
     //      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());;
-    _sortColumnStringsToCheck.add(_vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString());
+//    _sortColumnStringsToCheck.add(_vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString());
     for (FieldVector fieldVector : _vectorSchemaRootsForData.get(chunkId).getFieldVectors()) {
       FieldVector newFieldVector = _vectorSchemaRoot.getVector(fieldVector.getName());
       newFieldVector.setValueCount(newFieldVector.getValueCount() + 1);
@@ -551,11 +551,11 @@ public class JsonNodeArrowReader {
     System.out.println("Time taken to read all records: " + (endTime - startTime) + " ms");
 
     // check if sortcolumns strings are lexicographically sorted
-    for (int i = 0; i < _sortColumnStringsToCheck.size() - 1; i++) {
-      if (_sortColumnStringsToCheck.get(i).compareTo(_sortColumnStringsToCheck.get(i + 1)) > 0) {
-        System.out.println("Not sorted");
-        break;
-      }
-    }
+//    for (int i = 0; i < _sortColumnStringsToCheck.size() - 1; i++) {
+//      if (_sortColumnStringsToCheck.get(i).compareTo(_sortColumnStringsToCheck.get(i + 1)) > 0) {
+//        System.out.println("Not sorted");
+//        break;
+//      }
+//    }
   }
 }
