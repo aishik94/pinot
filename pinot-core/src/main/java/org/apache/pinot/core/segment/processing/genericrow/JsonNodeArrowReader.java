@@ -40,6 +40,7 @@ import org.apache.arrow.vector.ipc.ReadChannel;
 import org.apache.arrow.vector.ipc.SeekableReadChannel;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
 import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
+import org.apache.arrow.vector.util.Text;
 import org.apache.commons.io.input.MemoryMappedFileInputStream;
 
 
@@ -429,16 +430,29 @@ public class JsonNodeArrowReader {
     return (o1, o2) -> {
 
       // Get chunk ID
-      String cmp1 = "";
-      String cmp2 = "";
+      Text cmp1;
+      Text cmp2;
       VarCharVector sortColumn1 = (VarCharVector)  _vectorSchemaRoots.get(o1.left()).getVector(sortColumnName);
-      cmp1 = sortColumn1.getObject(o1.right()).toString();
+      cmp1 = sortColumn1.getObject(o1.right());
       VarCharVector sortColumn2 = (VarCharVector)  _vectorSchemaRoots.get(o2.left()).getVector(sortColumnName);
-      cmp2 = sortColumn2.getObject(o2.right()).toString();
-      return cmp1.compareTo(cmp2);
+      cmp2 = sortColumn2.getObject(o2.right());
+      return compareBetweenText(cmp1, cmp2);
     };
   }
 
+  private int compareBetweenText(Text cmp1, Text cmp2) {
+    // Compare the two strings without using cmp
+    long len1 = cmp1.getLength();
+    long len2 = cmp2.getLength();
+    long minLen = Math.min(len1, len2);
+    for (int i = 0; i < minLen; i++) {
+      int diff = cmp1.charAt(i) - cmp2.charAt(i);
+      if (diff != 0) {
+        return diff;
+      }
+    }
+    return 0;
+  }
   private void addToPriorityQueue(int chunkId, int index) {
     _priorityQueue.add(Pair.of(chunkId, index));
   }
@@ -505,7 +519,7 @@ public class JsonNodeArrowReader {
     int chunkId = element.left();
     int index = element.right();
     String string = _vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString();
-    _sortColumnStringsToCheck.add(string);
+//    _sortColumnStringsToCheck.add(string);
   }
 
   private void writeToFile() {
@@ -523,9 +537,9 @@ public class JsonNodeArrowReader {
 
   public void readAllRecordsAndDumpToFile()
       throws IOException {
-//    AsyncProfiler profiler = AsyncProfiler.getInstance();
-//    String profilerFileName = "ArrowSorterWallUnsafeNew";
-//    profiler.execute(String.format("start,event=wall,file=%s.html", profilerFileName));
+    AsyncProfiler profiler = AsyncProfiler.getInstance();
+    String profilerFileName = "ArrowSorterWallUnsafeNew1";
+    profiler.execute(String.format("start,event=alloc,file=%s.html", profilerFileName));
     long startTime = System.currentTimeMillis();
     while (_isFirstTime || !_priorityQueue.isEmpty()) {
       addRecordToVectorSchemaRoot();
@@ -533,7 +547,7 @@ public class JsonNodeArrowReader {
       _isFirstTime = false;
     }
     long endTime = System.currentTimeMillis();
-//    profiler.execute(String.format("stop,file=%s.html", profilerFileName));
+    profiler.execute(String.format("stop,file=%s.html", profilerFileName));
     System.out.println("Time taken to read all records: " + (endTime - startTime) + " ms");
 
     // check if sortcolumns strings are lexicographically sorted
