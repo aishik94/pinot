@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.core.segment.processing.timehandler.TimeHandler;
@@ -269,6 +270,69 @@ public class SegmentProcessorFrameworkTest {
     // Verify we see a specific value parsed from the complexType
     Assert.assertEquals(campaignMetadata.getMinValue().compareTo("inner2v"), 0);
   }
+
+  public static void main(String[] args) {
+
+  }
+
+  @Test
+  public void testNew()
+      throws Exception {
+    String filePath = "/Users/aishik/Work/rawData/merged100.json";
+    File workingDir = new File(TEMP_DIR, "testNew");
+
+    Schema pinotSchema = Schema.fromString(
+        "{\n" + "  \"schemaName\": \"exampleSchema\",\n" + "  \"enableColumnBasedNullHandling\": false,\n"
+            + "  \"dimensionFieldSpecs\": [\n" + "    {\n" + "      \"name\": \"low_cardinality_string\",\n"
+            + "      \"dataType\": \"STRING\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"high_cardinality_string\",\n" + "      \"dataType\": \"STRING\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"low_cardinality_int\",\n"
+            + "      \"dataType\": \"INT\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"high_cardinality_int\",\n" + "      \"dataType\": \"INT\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"low_cardinality_long\",\n"
+            + "      \"dataType\": \"LONG\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"high_cardinality_long\",\n" + "      \"dataType\": \"LONG\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"low_cardinality_float\",\n"
+            + "      \"dataType\": \"FLOAT\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"high_cardinality_float\",\n" + "      \"dataType\": \"FLOAT\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"low_cardinality_double\",\n"
+            + "      \"dataType\": \"DOUBLE\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"high_cardinality_double\",\n" + "      \"dataType\": \"DOUBLE\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"boolean_field\",\n"
+            + "      \"dataType\": \"BOOLEAN\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"timestamp_field\",\n" + "      \"dataType\": \"INT\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"json_field\",\n"
+            + "      \"dataType\": \"JSON\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"bytes_field\",\n" + "      \"dataType\": \"STRING\",\n" + "      \"notNull\": false\n"
+            + "    }\n" + "  ],\n" + "  \"metricFieldSpecs\": [\n" + "    {\n" + "      \"name\": \"metric_int\",\n"
+            + "      \"dataType\": \"INT\",\n" + "      \"notNull\": false\n" + "    },\n" + "    {\n"
+            + "      \"name\": \"metric_long\",\n" + "      \"dataType\": \"LONG\",\n" + "      \"notNull\": false\n"
+            + "    },\n" + "    {\n" + "      \"name\": \"metric_float\",\n" + "      \"dataType\": \"FLOAT\",\n"
+            + "      \"notNull\": false\n" + "    },\n" + "    {\n" + "      \"name\": \"metric_double\",\n"
+            + "      \"dataType\": \"DOUBLE\",\n" + "      \"notNull\": false\n" + "    }\n" + "  ],\n"
+            + "  \"dateTimeFieldSpecs\": [\n" + "    {\n" + "      \"name\": \"event_time\",\n"
+            + "      \"dataType\": \"LONG\",\n" + "      \"notNull\": false,\n"
+            + "      \"format\": \"1:MILLISECONDS:EPOCH\",\n" + "      \"granularity\": \"1:MILLISECONDS\"\n"
+            + "    }\n" + "  ]\n" + "}\n" + "12:39\n");
+
+    // Create a JsonRecordReader from the schema and the datafile.
+    RecordReader recordReader = RecordReaderFactory.getRecordReader(FileFormat.JSON, new File(filePath),
+        null, null);
+
+    TableConfig tableConfig =
+        new TableConfigBuilder(TableType.OFFLINE).setTableName("myTable").setSortedColumn("high_cardinality_string")
+//            .setTimeColumnName("timestamp_field")
+            .build();
+
+    SegmentProcessorConfig config =
+        new SegmentProcessorConfig.Builder().setTableConfig(tableConfig).setSchema(pinotSchema).build();
+
+    SegmentProcessorFramework framework = new SegmentProcessorFramework(Arrays.asList(recordReader), config, workingDir);
+    List<File> outputSegments = framework.process();
+    assertEquals(outputSegments.size(), 1);
+
+  }
+
 
   @Test
   public void testSingleSegment()

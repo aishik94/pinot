@@ -276,7 +276,11 @@ public class SegmentProcessorFramework {
         int numSortFields = fileReader.getNumSortFields();
         LOGGER.info("Start creating segments on partition: {}, numRows: {}, numSortFields: {}", partitionId, numRows,
             numSortFields);
+        long startTimeMs = System.currentTimeMillis();
         GenericRowFileRecordReader recordReader = fileReader.getRecordReader();
+        long endTimeMs = System.currentTimeMillis();
+        long durationMs = endTimeMs - startTimeMs;
+        LOGGER.info("Finished sorting file in {}ms", durationMs);
         int maxNumRecordsPerSegment;
         for (int startRowId = 0; startRowId < numRows; startRowId += maxNumRecordsPerSegment, _segmentSequenceId++) {
           maxNumRecordsPerSegment = _segmentNumRowProvider.getNumRows();
