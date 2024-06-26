@@ -33,12 +33,14 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.VectorLoader;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.ArrowFileWriter;
 import org.apache.arrow.vector.ipc.ReadChannel;
 import org.apache.arrow.vector.ipc.SeekableReadChannel;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
 import org.apache.arrow.vector.util.ByteArrayReadableSeekableByteChannel;
 import org.apache.arrow.vector.util.Text;
 import org.apache.commons.io.input.MemoryMappedFileInputStream;
@@ -69,6 +71,164 @@ public class JsonNodeArrowReader {
   List<ArrowFileReader> _dataReaderList;
   int suffix = 0;
   List<String> _sortColumnStringsToCheck = new ArrayList<>();
+  int _rowsPerLoad = 10000;
+
+  private void loadNextBatchInDataVectorSchemaRoot(int chunkId, int startIndex, boolean isFirstTime) throws IOException {
+
+    if (!isFirstTime) {
+      // Close the vector schema root for the chunk
+      _vectorSchemaRootsForData.get(chunkId).close();
+    }
+
+    // Get the reader for the chunk
+    ArrowFileReader reader = _dataReaderList.get(chunkId);
+    ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
+    try {
+      reader.loadRecordBatch(arrowBlock);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    // Get the vector schema root for the chunk
+    VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
+
+    // Create a new vector schema root
+    VectorSchemaRoot newVectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    newVectorSchemaRoot.clear();
+    newVectorSchemaRoot.setRowCount(_rowsPerLoad);
+
+    // set up bounds for the new vector schema root
+    int endIndex = startIndex + _rowsPerLoad;
+
+    // set the value of the index in the new vector based on vector type
+    for (FieldVector fieldVector : vectorSchemaRoot.getFieldVectors()) {
+      FieldVector newFieldVector = newVectorSchemaRoot.getVector(fieldVector.getName());
+      newFieldVector.setValueCount(_rowsPerLoad);
+      // set the value of the index in the new vector based on vector type
+      if (fieldVector instanceof IntVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((IntVector) newFieldVector).setSafe(i - startIndex, ((IntVector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof BigIntVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((BigIntVector) newFieldVector).setSafe(i - startIndex, ((BigIntVector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof Float4Vector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((Float4Vector) newFieldVector).setSafe(i - startIndex, ((Float4Vector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof Float8Vector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((Float8Vector) newFieldVector).setSafe(i - startIndex, ((Float8Vector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof VarCharVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((VarCharVector) newFieldVector).setSafe(i - startIndex, ((VarCharVector) fieldVector).getObject(i));
+        }
+      } else if (fieldVector instanceof VarBinaryVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((VarBinaryVector) newFieldVector).setSafe(i - startIndex, ((VarBinaryVector) fieldVector).getObject(i));
+        }
+      } else {
+        throw new UnsupportedOperationException("Unsupported vector type");
+      }
+    }
+    vectorSchemaRoot.close();
+    if (isFirstTime) {
+      _vectorSchemaRootsForData.add(chunkId, newVectorSchemaRoot);
+    } else {
+      _vectorSchemaRootsForData.set(chunkId, newVectorSchemaRoot);
+    }
+  }
+
+  private void loadNextBatchInSortColumnVectorSchemaRoot(int chunkId, int startIndex, boolean isFirstTime)
+      throws IOException {
+
+    if (!isFirstTime) {
+      // Close the vector schema root for the chunk
+      _vectorSchemaRoots.get(chunkId).close();
+    }
+
+    // Get the reader for the chunk
+    ArrowFileReader reader = _arrowFileReaders.get(chunkId);
+    ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
+    try {
+      reader.loadRecordBatch(arrowBlock);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    // Get the vector schema root for the chunk
+    VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
+
+    // Create a new vector schema root
+    VectorSchemaRoot newVectorSchemaRoot = VectorSchemaRoot.create(vectorSchemaRoot.getSchema(), _rootAllocator);
+    newVectorSchemaRoot.clear();
+    newVectorSchemaRoot.setRowCount(_rowsPerLoad);
+
+    // set up bounds for the new vector schema root
+    int endIndex = startIndex + _rowsPerLoad;
+
+    // set the value of the index in the new vector based on vector type
+    for (FieldVector fieldVector : vectorSchemaRoot.getFieldVectors()) {
+      FieldVector newFieldVector = newVectorSchemaRoot.getVector(fieldVector.getName());
+      newFieldVector.setValueCount(_rowsPerLoad);
+      // set the value of the index in the new vector based on vector type
+      if (fieldVector instanceof IntVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((IntVector) newFieldVector).setSafe(i - startIndex, ((IntVector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof BigIntVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((BigIntVector) newFieldVector).setSafe(i - startIndex, ((BigIntVector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof Float4Vector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((Float4Vector) newFieldVector).setSafe(i - startIndex, ((Float4Vector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof Float8Vector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((Float8Vector) newFieldVector).setSafe(i - startIndex, ((Float8Vector) fieldVector).get(i));
+        }
+      } else if (fieldVector instanceof VarCharVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((VarCharVector) newFieldVector).setSafe(i - startIndex, ((VarCharVector) fieldVector).getObject(i));
+        }
+      } else if (fieldVector instanceof VarBinaryVector) {
+        for (int i = startIndex; i < endIndex; i++) {
+          ((VarBinaryVector) newFieldVector).setSafe(i - startIndex, ((VarBinaryVector) fieldVector).getObject(i));
+        }
+      } else {
+        throw new UnsupportedOperationException("Unsupported vector type");
+      }
+    }
+    vectorSchemaRoot.close();
+    if (isFirstTime) {
+      _vectorSchemaRoots.add(chunkId, newVectorSchemaRoot);
+    } else {
+      _vectorSchemaRoots.set(chunkId, newVectorSchemaRoot);
+    }
+  }
+
+  private void initializeLimitedVectorSchemaRootsForData() {
+    _vectorSchemaRootsForData = new ArrayList<>();
+    for (int i = 0; i < _dataReaderList.size(); i++) {
+      try {
+        loadNextBatchInDataVectorSchemaRoot(i,0, true);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  private void initializeLimitedVectorSchemaRootsForSortedColumns() {
+    _vectorSchemaRoots = new ArrayList<>();
+    for (int i = 0; i < _arrowFileReaders.size(); i++) {
+      try {
+        loadNextBatchInSortColumnVectorSchemaRoot(i, 0, true);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+  }
 
   public JsonNodeArrowReader(org.apache.arrow.vector.types.pojo.Schema arrowSchema, List<String> sortColumns)
       throws Exception {
@@ -92,7 +252,9 @@ public class JsonNodeArrowReader {
     initialiseNewReadersForData();
 //    test();
     initializeVectorSchemaRoots();
-    initializeVectorSchemaRootsForData();
+//    initializeVectorSchemaRootsForData();
+//    initializeLimitedVectorSchemaRootsForSortedColumns();
+    initializeLimitedVectorSchemaRootsForData();
     _customComparator = getCustomComparator();
     initializeMinHeap();
   }
@@ -126,55 +288,6 @@ public class JsonNodeArrowReader {
       addToPriorityQueue(i, 0);
     }
   }
-
-  private void test() {
-    for (File file : _fileList) {
-      try (MemoryMappedFileInputStream memoryMappedFileInputStream = MemoryMappedFileInputStream.builder().setFile(file).get();
-          BufferedInputStream bufferedInputStream = new BufferedInputStream(memoryMappedFileInputStream)) {
-        // Create Arrow reader from the mapped byte buffer
-        ArrowFileReader reader = new ArrowFileReader(
-            (SeekableReadChannel) Channels.newChannel(memoryMappedFileInputStream), _rootAllocator);
-        _arrowFileReaders.add(reader);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    }
-  }
-
-//  private void fileInputStreamMmap() {
-//    for (File fileNew : _fileList) {
-//      try (RandomAccessFile file = new RandomAccessFile(fileNew, "r");
-//          FileChannel fileChannel = file.getChannel()) {
-//        long fileSize = fileChannel.size();
-//        MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileSize);
-//        // Create a ReadChannel from the MappedByteBuffer
-//        ReadChannel readChannel = new SeekableReadChannel() {
-//          @Override
-//          public long readFully(ArrowBuf arrowBuf, long length) throws IOException {
-//            long bufferSize = arrowBuf.capacity();
-//            if (mappedByteBuffer.remaining() >= bufferSize) {
-//              mappedByteBuffer.get(arrowBuf.nioBuffer().array());
-//              return bufferSize;
-//            } else {
-//              return -1; // End of file
-//            }
-//          }
-//
-//          @Override
-//          public void close() throws IOException {
-//            // No need to close the MappedByteBuffer
-//          }
-//        };
-//
-//        // Create Arrow reader from the mapped byte buffer
-//        ArrowFileReader reader = new ArrowFileReader(new ByteArrayReadableSeekableByteChannel(mappedByteBuffer), _rootAllocator);
-//        _arrowFileReaders.add(reader);
-//      } catch (IOException e) {
-//        throw new RuntimeException(e);
-//      }
-//    }
-//
-//  }
 
   private void initialiseNewReaders() {
     for (File file : _fileList) {
@@ -319,79 +432,6 @@ public class JsonNodeArrowReader {
   }
 
 
-  private Pair<ArrowFileReader, VarCharVector> createReaderAndSortColumn(String filePath) {
-    try (FileChannel fileChannel = FileChannel.open(Paths.get(filePath), StandardOpenOption.READ)) {
-      // Memory-map the file
-      MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
-
-      // Wrap the MappedByteBuffer in a SeekableByteChannel
-      SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
-        private int position = 0;
-
-        @Override
-        public int read(ByteBuffer dst) throws IOException {
-          int remaining = mappedByteBuffer.remaining();
-          if (remaining == 0) {
-            return -1;
-          }
-          int length = Math.min(dst.remaining(), remaining);
-          byte[] data = new byte[length];
-          mappedByteBuffer.get(data);
-          dst.put(data);
-          return length;
-        }
-
-        @Override
-        public int write(ByteBuffer src) throws IOException {
-          throw new UnsupportedOperationException("Read-only channel");
-        }
-
-        @Override
-        public long position() throws IOException {
-          return position;
-        }
-
-        @Override
-        public SeekableByteChannel position(long newPosition) throws IOException {
-          mappedByteBuffer.position((int) newPosition);
-          position = (int) newPosition;
-          return this;
-        }
-
-        @Override
-        public long size() throws IOException {
-          return mappedByteBuffer.capacity();
-        }
-
-        @Override
-        public SeekableByteChannel truncate(long size) throws IOException {
-          throw new UnsupportedOperationException("Read-only channel");
-        }
-
-        @Override
-        public boolean isOpen() {
-          return true;
-        }
-
-        @Override
-        public void close() throws IOException {
-          // No-op
-        }
-      };
-
-      // Create the ArrowFileReader with the SeekableByteChannel
-      ArrowFileReader reader = new ArrowFileReader(seekableByteChannel, _rootAllocator);
-      ArrowBlock arrowBlock = reader.getRecordBlocks().get(0);
-      reader.loadRecordBatch(arrowBlock);
-      VectorSchemaRoot vectorSchemaRoot = reader.getVectorSchemaRoot();
-      VarCharVector sortColumn = (VarCharVector) vectorSchemaRoot.getVector(sortColumnName);
-      return Pair.of(reader, sortColumn);
-    } catch (IOException e) {
-      e.printStackTrace();
-      return null;
-    }
-  }
-
   private void initializeFileInputStreams() {
     _fileInputStreams = new ArrayList<>();
     for (File file : _fileList) {
@@ -459,17 +499,25 @@ public class JsonNodeArrowReader {
 
   private Pair<Integer, Integer> extractMinFromPriorityQueue() {
     Pair<Integer, Integer> element = _priorityQueue.poll();
-    if (element.right() < 24999) {
+    if (element.right() < 49999) {
       addToPriorityQueue(element.left(), element.right() + 1);
     }
-//    System.out.println("Extracted element: " + element.left() + " " + element.right());
     return element;
   }
 
   private void addRecordToVectorSchemaRoot() {
     Pair<Integer, Integer> element = extractMinFromPriorityQueue();
     int chunkId = element.left();
-    int index = element.right();
+    int originalIndex = element.right();
+
+    if ((originalIndex > 0) &&(originalIndex % _rowsPerLoad == 0)) {
+      try {
+        loadNextBatchInDataVectorSchemaRoot(chunkId, originalIndex, false);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+    int index = originalIndex % _rowsPerLoad;
     String filePath = _dataFileList.get(chunkId).toString();
     //      System.out.println("Record batches in file: " + reader.getRecordBlocks().size());;
 //    _sortColumnStringsToCheck.add(_vectorSchemaRootsForData.get(chunkId).getVector(sortColumnName).getObject(index).toString());
@@ -500,10 +548,14 @@ public class JsonNodeArrowReader {
       }
     }
     _vectorSchemaRoot.setRowCount(_vectorSchemaRoot.getRowCount() + 1);
-    if (_vectorSchemaRoot.getRowCount() == 25000) {
+    if (_vectorSchemaRoot.getRowCount() == 10000) {
       writeToFile();
       clearVectorSchemaRoot();
       _vectorSchemaRoot.setRowCount(0);
+    }
+    if (chunkId >= 49999) {
+      _vectorSchemaRootsForData.get(element.left()).close();
+      _vectorSchemaRoots.get(element.left()).close();
     }
   }
   private void clearVectorSchemaRoot() {

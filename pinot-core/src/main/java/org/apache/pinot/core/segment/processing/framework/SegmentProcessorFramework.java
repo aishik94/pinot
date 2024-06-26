@@ -46,6 +46,7 @@ import org.apache.pinot.spi.data.readers.RecordReaderFileConfig;
 import org.apache.pinot.spi.recordenricher.RecordEnricherPipeline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import one.profiler.AsyncProfiler;
 
 
 /**
@@ -276,9 +277,13 @@ public class SegmentProcessorFramework {
         int numSortFields = fileReader.getNumSortFields();
         LOGGER.info("Start creating segments on partition: {}, numRows: {}, numSortFields: {}", partitionId, numRows,
             numSortFields);
+        AsyncProfiler profiler = AsyncProfiler.getInstance();
+        String profilerFileName = "CurrentSortingAllocFlameGraph";
+        profiler.execute(String.format("start,event=alloc,file=%s.html", profilerFileName));
         long startTimeMs = System.currentTimeMillis();
         GenericRowFileRecordReader recordReader = fileReader.getRecordReader();
         long endTimeMs = System.currentTimeMillis();
+        profiler.execute(String.format("stop,file=%s.html", profilerFileName));
         long durationMs = endTimeMs - startTimeMs;
         LOGGER.info("Finished sorting file in {}ms", durationMs);
         int maxNumRecordsPerSegment;
