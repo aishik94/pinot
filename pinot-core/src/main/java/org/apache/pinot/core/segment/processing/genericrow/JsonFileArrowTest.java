@@ -14,7 +14,7 @@ import org.apache.pinot.spi.data.Schema;
 public class JsonFileArrowTest {
   public static void main(String[] args)
       throws Exception {
-    String filePath = "/Users/aishik/Work/rawData/merged29.json";
+    String filePath = "/Users/aishik/Work/rawData/merged50.json";
 
     Schema pinotSchema = Schema.fromString(
         "{\n" + "  \"schemaName\": \"exampleSchema\",\n" + "  \"enableColumnBasedNullHandling\": false,\n"

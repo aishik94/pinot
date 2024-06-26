@@ -369,7 +369,7 @@ public class JsonNodeArrowWriter {
     fillVectorsFromJsonNode(_vectorSchemaRoot, jsonNode);
     _vectorSchemaRoot.setRowCount(_batchRowCount);
 //    if (_currentBufferSize >= DEFAULT_BATCH_SIZE_BYTES)
-    if (_vectorSchemaRoot.getRowCount() >= 50000) {
+    if (_vectorSchemaRoot.getRowCount() >= 25000) {
       String filePath = filePrefix + (suffixCount++) + fileSuffix;
       File outFile = new File(filePath);
       String sortedColumnFilePath;

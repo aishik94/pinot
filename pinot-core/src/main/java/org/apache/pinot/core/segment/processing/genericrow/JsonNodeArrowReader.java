@@ -71,7 +71,7 @@ public class JsonNodeArrowReader {
   List<ArrowFileReader> _dataReaderList;
   int suffix = 0;
   List<String> _sortColumnStringsToCheck = new ArrayList<>();
-  int _rowsPerLoad = 10000;
+  int _rowsPerLoad = 5000;
 
   private void loadNextBatchInDataVectorSchemaRoot(int chunkId, int startIndex, boolean isFirstTime) throws IOException {
 
@@ -499,7 +499,7 @@ public class JsonNodeArrowReader {
 
   private Pair<Integer, Integer> extractMinFromPriorityQueue() {
     Pair<Integer, Integer> element = _priorityQueue.poll();
-    if (element.right() < 49999) {
+    if (element.right() < 24999) {
       addToPriorityQueue(element.left(), element.right() + 1);
     }
     return element;
@@ -548,12 +548,12 @@ public class JsonNodeArrowReader {
       }
     }
     _vectorSchemaRoot.setRowCount(_vectorSchemaRoot.getRowCount() + 1);
-    if (_vectorSchemaRoot.getRowCount() == 10000) {
+    if (_vectorSchemaRoot.getRowCount() == 1250) {
       writeToFile();
       clearVectorSchemaRoot();
       _vectorSchemaRoot.setRowCount(0);
     }
-    if (chunkId >= 49999) {
+    if (chunkId >= 24999) {
       _vectorSchemaRootsForData.get(element.left()).close();
       _vectorSchemaRoots.get(element.left()).close();
     }
