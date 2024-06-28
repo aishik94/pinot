@@ -59,6 +59,19 @@
       <classifier>linux-x86_64</classifier>
     </dependency>
     <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-algorithm</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-unsafe</artifactId>
+      <version>${arrow.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-vector</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-transport-native-epoll</artifactId>
       <classifier>linux-aarch_64</classifier>
