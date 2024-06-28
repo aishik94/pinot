@@ -39,7 +39,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.pinot.spi.data.readers.GenericRow;
 
 
-public class ArrowFileGenericRowReader implements AutoCloseable {
+public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseable {
   public static final int MAX_ROWS_TO_LOAD_PER_BATCH = 10000;
   public static final int ROOT_ALLOCATOR_CAPACITY = 512 * 1024 * 1024;
   boolean _isSortColumnConfigured;
@@ -215,6 +215,10 @@ public class ArrowFileGenericRowReader implements AutoCloseable {
     buffer = convertToGenericRow(_vectorSchemaRootForNonSortedCase, chunkIdAndRowId.right());
   }
 
+  public int getNumSortFields() {
+    return _sortColumnFiles == null ? 0 : _sortColumnFiles.size();
+  }
+
   @Override
   public void close() {
     for (org.apache.arrow.vector.ipc.ArrowFileReader arrowFileReader : _dataFileReaders) {
@@ -234,4 +238,3 @@ public class ArrowFileGenericRowReader implements AutoCloseable {
     _rootAllocator.close();
   }
 }
-

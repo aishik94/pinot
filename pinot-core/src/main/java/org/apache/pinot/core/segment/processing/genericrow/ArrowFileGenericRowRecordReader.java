@@ -27,7 +27,7 @@ import org.apache.pinot.spi.data.readers.RecordReader;
 import org.apache.pinot.spi.data.readers.RecordReaderConfig;
 
 
-public class ArrowFileGenericRowRecordReader implements RecordReader {
+public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRowRecordReader {
   ArrowFileGenericRowReader _arrowFileReader;
   int _startRowId;
   int _endRowId;
