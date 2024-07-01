@@ -27,7 +27,7 @@ import org.apache.pinot.spi.data.readers.RecordReader;
 import org.apache.pinot.spi.data.readers.RecordReaderConfig;
 
 
-public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRowRecordReader {
+public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRowMapperOutputRecordReader {
   ArrowFileGenericRowReader _arrowFileReader;
   int _startRowId;
   int _endRowId;
@@ -35,7 +35,7 @@ public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRow
   public ArrowFileGenericRowRecordReader(ArrowFileGenericRowReader arrowFileReader) {
     _arrowFileReader = arrowFileReader;
     _startRowId = 0;
-    _endRowId = arrowFileReader.getTotalNumRows();
+    _endRowId = arrowFileReader.getNumRows();
   }
 
   public ArrowFileGenericRowRecordReader(ArrowFileGenericRowReader arrowFileReader, int startRowId, int endRowId) {
@@ -46,6 +46,11 @@ public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRow
 
   public ArrowFileGenericRowRecordReader getRecordReaderForRange(int startRowId, int endRowId) {
     return new ArrowFileGenericRowRecordReader(_arrowFileReader, startRowId, endRowId);
+  }
+
+  // Placeholder implementation
+  public int compare(int rowId1, int rowId2) {
+    return 0;
   }
 
   public void read(int rowId, GenericRow buffer) {

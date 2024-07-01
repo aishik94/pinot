@@ -76,7 +76,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     _chunkRowCounts = chunkRowCounts;
   }
 
-  public int getTotalNumRows() {
+  public int getNumRows() {
     return _totalNumRows;
   }
 
