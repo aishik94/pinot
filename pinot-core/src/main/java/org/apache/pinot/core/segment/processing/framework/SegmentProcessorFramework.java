@@ -272,7 +272,7 @@ public class SegmentProcessorFramework {
       String partitionId = entry.getKey();
       GenericRowFileManager fileManager = entry.getValue();
       try {
-        GenericRowReader fileReader = fileManager.getFileReader();
+        GenericRowReader fileReader = fileManager.getFileReaderForTest();
         int numRows = fileReader.getNumRows();
         int numSortFields = fileReader.getNumSortFields();
         LOGGER.info("Start creating segments on partition: {}, numRows: {}, numSortFields: {}", partitionId, numRows,

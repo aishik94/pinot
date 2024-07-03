@@ -21,6 +21,12 @@ package org.apache.pinot.core.segment.processing.genericrow;
 import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +46,8 @@ public class GenericRowFileManager {
   private final List<FieldSpec> _fieldSpecs;
   private final boolean _includeNullFields;
   private final int _numSortFields;
+  private GenericRowArrowFileWriter _arrowFileWriter;
+  File _outputDir;
 
   private GenericRowFileWriter _fileWriter;
   private GenericRowReader _fileReader;
@@ -51,6 +59,7 @@ public class GenericRowFileManager {
     _fieldSpecs = fieldSpecs;
     _includeNullFields = includeNullFields;
     _numSortFields = numSortFields;
+    _outputDir = outputDir;
   }
 
   /**
@@ -88,6 +97,17 @@ public class GenericRowFileManager {
   }
 
   /**
+   * Returns the file writer. Creates one if not exists.
+   */
+  public GenericRowArrowFileWriter getFileWriterForTest()
+      throws IOException {
+    if (_arrowFileWriter == null) {
+      _arrowFileWriter = new GenericRowArrowFileWriter(_outputDir, _fieldSpecs);
+    }
+    return _arrowFileWriter;
+  }
+
+  /**
    * Closes the file writer.
    */
   public void closeFileWriter()
@@ -96,6 +116,19 @@ public class GenericRowFileManager {
       _fileWriter.close();
       _fileWriter = null;
     }
+  }
+
+  List<File> getFileListFromDirectoryPath(String dirPath) {
+    List<File> fileList = new ArrayList<>();
+    try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(Paths.get(dirPath))) {
+      for (Path path : directoryStream) {
+        fileList.add(path.toFile());
+      }
+      Collections.sort(fileList);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return fileList;
   }
 
   /**
@@ -112,7 +145,22 @@ public class GenericRowFileManager {
       params.put("fieldSpecs", _fieldSpecs);
       params.put("includeNullFields", _includeNullFields);
       params.put("numSortFields", _numSortFields);
-      _fileReader = new GenericRowFileReader(_offsetFile, _dataFile, _fieldSpecs, _includeNullFields, _numSortFields);
+      _fileReader = GenericRowReaderFactory.getGenericRowReader("GenericRowFileReader", params);
+    }
+    return _fileReader;
+  }
+
+  public GenericRowReader getFileReaderForTest()
+      throws IOException {
+    if (_fileReader == null) {
+//      _arrowFileWriter.close();
+      Map<String, Object> params = new HashMap<>();
+      params.put("dataFiles", getFileListFromDirectoryPath(_outputDir.toString()));
+      params.put("chunkRowCounts", _arrowFileWriter.getChunkRowCounts());
+      params.put("arrowSchema", _arrowFileWriter.getArrowSchema());
+      params.put("totalNumRows", _arrowFileWriter.getTotalNumRows());
+      params.put("sortColumnFiles", null);
+      _fileReader = GenericRowReaderFactory.getGenericRowReader("ArrowFileGenericRowReader", params);
     }
     return _fileReader;
   }

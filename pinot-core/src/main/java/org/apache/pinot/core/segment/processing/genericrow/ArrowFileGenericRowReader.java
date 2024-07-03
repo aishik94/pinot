@@ -21,6 +21,12 @@ package org.apache.pinot.core.segment.processing.genericrow;
 import it.unimi.dsi.fastutil.Pair;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.arrow.memory.RootAllocator;
@@ -62,7 +68,6 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
       Schema arrowSchema, int totalNumRows) {
     _dataFiles = dataFiles;
     _sortColumnFiles = sortColumnFiles;
-    _dataFileReaders = new ArrayList<>();
     _sortColumnFileReaders = new ArrayList<>();
     _rootAllocator = new RootAllocator(ROOT_ALLOCATOR_CAPACITY);
     _isSortColumnConfigured = sortColumnFiles != null && !sortColumnFiles.isEmpty();
@@ -74,7 +79,83 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     _totalNumRows = totalNumRows;
     _chunkCount = 0;
     _chunkRowCounts = chunkRowCounts;
+    _vectorSchemaRootForNonSortedCase = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    initialiseReadersForData();
+    System.setProperty("arrow.enable_null_check_for_get", "false");
   }
+
+  private void initialiseReadersForData() {
+    _dataFileReaders = new ArrayList<>();
+    for (File file : _dataFiles) {
+      Path filePath = file.toPath();
+      try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ)) {
+        // Memory-map the file
+        MappedByteBuffer mappedByteBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
+
+        // Wrap the MappedByteBuffer in a SeekableByteChannel
+        SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
+          private int position = 0;
+
+          @Override
+          public int read(ByteBuffer dst) throws IOException {
+            int remaining = mappedByteBuffer.remaining();
+            if (remaining == 0) {
+              return -1;
+            }
+            int length = Math.min(dst.remaining(), remaining);
+            byte[] data = new byte[length];
+            mappedByteBuffer.get(data);
+            dst.put(data);
+            return length;
+          }
+
+          @Override
+          public int write(ByteBuffer src) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public long position() throws IOException {
+            return position;
+          }
+
+          @Override
+          public SeekableByteChannel position(long newPosition) throws IOException {
+            mappedByteBuffer.position((int) newPosition);
+            position = (int) newPosition;
+            return this;
+          }
+
+          @Override
+          public long size() throws IOException {
+            return mappedByteBuffer.capacity();
+          }
+
+          @Override
+          public SeekableByteChannel truncate(long size) throws IOException {
+            throw new UnsupportedOperationException("Read-only channel");
+          }
+
+          @Override
+          public boolean isOpen() {
+            return true;
+          }
+
+          @Override
+          public void close() throws IOException {
+            // No-op
+          }
+        };
+
+        // Create the ArrowFileReader with the SeekableByteChannel
+        ArrowFileReader reader = new ArrowFileReader(seekableByteChannel, _rootAllocator);
+        _dataFileReaders.add(reader);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
 
   public int getNumRows() {
     return _totalNumRows;
@@ -98,7 +179,8 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
       } else if (fieldVector instanceof Float8Vector) {
         genericRow.putValue(fieldVector.getName(), ((Float8Vector) fieldVector).get(rowId));
       } else if (fieldVector instanceof VarCharVector) {
-        genericRow.putValue(fieldVector.getName(), ((VarCharVector) fieldVector).getObject(rowId));
+        String result = ((VarCharVector) fieldVector).getObject(rowId).toString();
+        genericRow.putValue(fieldVector.getName(), result);
       } else if (fieldVector instanceof VarBinaryVector) {
         genericRow.putValue(fieldVector.getName(), ((VarBinaryVector) fieldVector).getObject(rowId));
       } else if (fieldVector instanceof ListVector) {
@@ -144,7 +226,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
         throw new UnsupportedOperationException("Unsupported vector type");
       }
     }
-    _currentRowCount++;
+//    _currentRowCount++;
     return genericRow;
   }
 
@@ -154,7 +236,10 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
 
   public void rewind()
       throws IOException {
-    _vectorSchemaRootForNonSortedCase.close();
+    _chunkCount = 0;
+    _currentRowCount = 0;
+    _currentChunkRowCount = 0;
+    _vectorSchemaRootForNonSortedCase.clear();
     loadNextBatchInDataVectorSchemaRootForUnsortedData(0);
   }
 
@@ -179,9 +264,10 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
 
   public GenericRow next(GenericRow reuse)
       throws IOException {
-    reuse = convertToGenericRow(_vectorSchemaRootForNonSortedCase, _currentChunkRowCount++);
+    reuse = convertToGenericRow(_vectorSchemaRootForNonSortedCase, _currentChunkRowCount);
+    _currentChunkRowCount++;
     _currentRowCount++;
-    if (_currentChunkRowCount == _vectorSchemaRootForNonSortedCase.getRowCount()) {
+    if ((_currentChunkRowCount == _vectorSchemaRootForNonSortedCase.getRowCount()) && (_chunkCount < _dataFiles.size() - 1)){
       _currentChunkRowCount = 0;
       _vectorSchemaRootForNonSortedCase.close();
       loadNextBatchInDataVectorSchemaRootForUnsortedData(++_chunkCount);

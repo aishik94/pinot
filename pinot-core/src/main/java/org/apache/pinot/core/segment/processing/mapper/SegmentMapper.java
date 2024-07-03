@@ -31,6 +31,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.pinot.core.segment.processing.framework.SegmentProcessorConfig;
 import org.apache.pinot.core.segment.processing.genericrow.AdaptiveSizeBasedWriter;
+import org.apache.pinot.core.segment.processing.genericrow.GenericRowArrowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileManager;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileWriter;
 import org.apache.pinot.core.segment.processing.partitioner.Partitioner;
@@ -244,7 +245,8 @@ public class SegmentMapper {
     }
 
     // Get the file writer.
-    GenericRowFileWriter fileWriter = fileManager.getFileWriter();
+//    GenericRowFileWriter fileWriter = fileManager.getFileWriter();
+    GenericRowArrowFileWriter fileWriter = fileManager.getFileWriterForTest();
 
     // Write the row.
     _adaptiveSizeBasedWriter.write(fileWriter, row);
