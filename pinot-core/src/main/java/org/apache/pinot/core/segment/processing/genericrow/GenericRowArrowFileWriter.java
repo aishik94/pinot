@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -46,6 +48,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
   int _currentChunkRowCount;
   List<FieldSpec> _fieldSpecs;
   File _outputDir;
+  boolean _includeNullFields;
 
   public GenericRowArrowFileWriter(File dataOutputDir, List<FieldSpec> fieldSpecs) {
     _filePrefix = "arrowDataFile";
@@ -59,10 +62,26 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     _fieldSpecs = fieldSpecs;
     _currentChunkRowCount = 0;
     _outputDir = dataOutputDir;
+    _includeNullFields = false;
+  }
+
+  public GenericRowArrowFileWriter(File dataOutputDir, List<FieldSpec> fieldSpecs, boolean includeNullFields) {
+    _filePrefix = "arrowDataFile";
+    _includeNullFields = includeNullFields;
+    _arrowSchema = getArrowSchemaFromPinotSchema(fieldSpecs);
+    _batchRowCount = 0;
+    _currentBufferSize = 0;
+    _rootAllocator = new RootAllocator(DEFAULT_DIRECT_MEMORY_ALLOCATION_SIZE_IN_BYTES);
+    _vectorSchemaRoot = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    _totalNumRows = 0;
+    _chunkRowCounts = new ArrayList<>();
+    _fieldSpecs = fieldSpecs;
+    _currentChunkRowCount = 0;
+    _outputDir = dataOutputDir;
   }
 
 
-  public static org.apache.arrow.vector.types.pojo.Schema getArrowSchemaFromPinotSchema(List<FieldSpec> fieldSpecs) {
+  private org.apache.arrow.vector.types.pojo.Schema getArrowSchemaFromPinotSchema(List<FieldSpec> fieldSpecs) {
     List<Field> arrowFields = new ArrayList<>();
 
     for (FieldSpec fieldSpec : fieldSpecs) {
@@ -135,6 +154,16 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
             throw new RuntimeException("Unsupported data type: " + storedType);
         }
       }
+    }
+    if (_includeNullFields) {
+//      org.apache.arrow.vector.types.pojo.Field arrowField;
+//      FieldType fieldType = new FieldType(true, new ArrowType.List.Int(32, true), null);
+//      arrowField = new org.apache.arrow.vector.types.pojo.Field("nullFields", fieldType, null);
+
+      Field nullfield = new org.apache.arrow.vector.types.pojo.Field("intList",
+          FieldType.nullable(new ArrowType.List()),
+          List.of(new Field("item", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+      arrowFields.add(nullfield);
     }
     return new org.apache.arrow.vector.types.pojo.Schema(arrowFields);
   }
@@ -246,6 +275,20 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
             throw new RuntimeException("Unsupported data type: " + fieldSpec.getDataType().getStoredType());
         }
       }
+    }
+    Set<String> nullFields = row.getNullValueFields();
+    if (_includeNullFields) {
+     ListVector nullFieldsVector = (ListVector) fieldVectors.get(fieldVectors.size() - 1);
+      UnionListWriter listWriter = nullFieldsVector.getWriter();
+      listWriter.setPosition(_batchRowCount);
+      listWriter.startList();
+      for (int i = 0; i < _fieldSpecs.size(); i++) {
+        if (nullFields.contains(_fieldSpecs.get(i).getName())) {
+          listWriter.writeInt(i);
+        }
+      }
+      listWriter.setValueCount(nullFields.size());
+      listWriter.endList();
     }
     _batchRowCount++;
   }
@@ -391,10 +434,11 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     } catch (Exception e) {
       throw new RuntimeException("Failed to write Arrow file", e);
     }
+    _chunkRowCounts.add(_currentChunkRowCount);
     _vectorSchemaRoot.clear();
     _currentBufferSize = 0;
     _batchRowCount = 0;
-    _currentChunkRowCount = 0;
+    _currentChunkRowCount = -1;
 //    _currentChunkRowCount++;
 //    _totalNumRows++;
   }

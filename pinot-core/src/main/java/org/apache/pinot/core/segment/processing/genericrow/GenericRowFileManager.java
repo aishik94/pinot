@@ -102,7 +102,7 @@ public class GenericRowFileManager {
   public GenericRowArrowFileWriter getFileWriterForTest()
       throws IOException {
     if (_arrowFileWriter == null) {
-      _arrowFileWriter = new GenericRowArrowFileWriter(_outputDir, _fieldSpecs);
+      _arrowFileWriter = new GenericRowArrowFileWriter(_outputDir, _fieldSpecs, _includeNullFields);
     }
     return _arrowFileWriter;
   }
@@ -160,6 +160,7 @@ public class GenericRowFileManager {
       params.put("arrowSchema", _arrowFileWriter.getArrowSchema());
       params.put("totalNumRows", _arrowFileWriter.getTotalNumRows());
       params.put("sortColumnFiles", null);
+      params.put("includeNullFields", _includeNullFields);
       _fileReader = GenericRowReaderFactory.getGenericRowReader("ArrowFileGenericRowReader", params);
     }
     return _fileReader;

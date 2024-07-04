@@ -65,7 +65,7 @@ public class DedupReducer implements Reducer {
     LOGGER.info("Start reducing on partition: {}", _partitionId);
     long reduceStartTimeMs = System.currentTimeMillis();
 
-    GenericRowReader fileReader = _fileManager.getFileReader();
+    GenericRowReader fileReader = _fileManager.getFileReaderForTest();
     int numRows = fileReader.getNumRows();
     int numSortFields = fileReader.getNumSortFields();
     LOGGER.info("Start sorting on numRows: {}, numSortFields: {}", numRows, numSortFields);

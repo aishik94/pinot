@@ -60,8 +60,10 @@ public class GenericRowReaderFactory {
     List<Integer> chunkRowCounts = (List<Integer>) params.get("chunkRowCounts");
     Schema arrowSchema = (Schema) params.get("arrowSchema");
     int totalNumRows = (int) params.get("totalNumRows");
+    boolean includeNullFields = (boolean) params.get("includeNullFields");
 
-    return new ArrowFileGenericRowReader(dataFiles, sortColumnFiles, chunkRowCounts, arrowSchema, totalNumRows);
+    return new ArrowFileGenericRowReader(dataFiles, sortColumnFiles, chunkRowCounts, arrowSchema, totalNumRows,
+        includeNullFields);
   }
 
   private static GenericRowFileReader createGenericRowFileReader(Map<String, Object> params)

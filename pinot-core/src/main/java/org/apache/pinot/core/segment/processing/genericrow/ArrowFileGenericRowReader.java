@@ -29,6 +29,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
+import org.apache.arrow.algorithm.sort.VectorValueComparator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.FieldVector;
@@ -63,6 +65,8 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
   VectorSchemaRoot _vectorSchemaRootForNonSortedCase;
   int _totalNumRows;
   List<Integer> _chunkRowCounts;
+  boolean _isChunkLoaded;
+  boolean _includeNullFields;
 
   public ArrowFileGenericRowReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
       Schema arrowSchema, int totalNumRows) {
@@ -80,8 +84,32 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     _chunkCount = 0;
     _chunkRowCounts = chunkRowCounts;
     _vectorSchemaRootForNonSortedCase = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    _isChunkLoaded = false;
     initialiseReadersForData();
     System.setProperty("arrow.enable_null_check_for_get", "false");
+    _includeNullFields = false;
+  }
+
+  public ArrowFileGenericRowReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
+      Schema arrowSchema, int totalNumRows, boolean includeNullFields) {
+    _dataFiles = dataFiles;
+    _sortColumnFiles = sortColumnFiles;
+    _sortColumnFileReaders = new ArrayList<>();
+    _rootAllocator = new RootAllocator(ROOT_ALLOCATOR_CAPACITY);
+    _isSortColumnConfigured = sortColumnFiles != null && !sortColumnFiles.isEmpty();
+    _sortColumnVectorSchemaRoots = _isSortColumnConfigured ? new ArrayList<>() : null;
+    _arrowSchema = arrowSchema;
+    _dataVectorSchemaRoots = new ArrayList<>();
+    _currentRowCount = 0;
+    _currentChunkRowCount = 0;
+    _totalNumRows = totalNumRows;
+    _chunkCount = 0;
+    _chunkRowCounts = chunkRowCounts;
+    _vectorSchemaRootForNonSortedCase = VectorSchemaRoot.create(_arrowSchema, _rootAllocator);
+    _isChunkLoaded = false;
+    initialiseReadersForData();
+    System.setProperty("arrow.enable_null_check_for_get", "false");
+    _includeNullFields = includeNullFields;
   }
 
   private void initialiseReadersForData() {
@@ -170,6 +198,19 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     for (int i = 0; i < vectorSchemaRoot.getFieldVectors().size(); i++) {
       FieldVector fieldVector = vectorSchemaRoot.getFieldVectors().get(i);
 
+      if (_includeNullFields && (i == vectorSchemaRoot.getFieldVectors().size() - 1)) {
+        ListVector listVector = (ListVector) fieldVector;
+        FieldVector dataVector = listVector.getDataVector();
+        int startIndex = listVector.getElementStartIndex(rowId);
+        int endIndex = listVector.getElementEndIndex(rowId);
+        IntVector intVector = (IntVector) dataVector;
+
+        for (int j = startIndex; j < endIndex; j++) {
+            genericRow.addNullValueField(vectorSchemaRoot.getFieldVectors().get(intVector.get(j)).getName());
+        }
+        break;
+      }
+
       if (fieldVector instanceof IntVector) {
         genericRow.putValue(fieldVector.getName(), ((IntVector) fieldVector).get(rowId));
       } else if (fieldVector instanceof BigIntVector) {
@@ -255,6 +296,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     }
     // Get the vector schema root for the chunk
     _vectorSchemaRootForNonSortedCase = reader.getVectorSchemaRoot();
+    _isChunkLoaded = true;
   }
 
   public GenericRow next()
@@ -282,7 +324,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
   public Pair<Integer, Integer> getChunkIdAndLocalRowIdFromGlobalRowId(int rowId) {
     int chunkId = 0;
     int localRowId = rowId;
-    while (localRowId >= _chunkRowCounts.get(chunkId)) {
+    while ((chunkId < _chunkRowCounts.size()) && (localRowId >= _chunkRowCounts.get(chunkId))) {
       localRowId -= _chunkRowCounts.get(chunkId);
       chunkId++;
     }
@@ -291,14 +333,14 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
 
   public void read(int rowId, GenericRow buffer) {
     Pair<Integer, Integer> chunkIdAndRowId = getChunkIdAndLocalRowIdFromGlobalRowId(rowId);
-    if (_chunkCount != chunkIdAndRowId.left()) {
+    if (_chunkCount != chunkIdAndRowId.left() || !_isChunkLoaded) {
       try {
         loadNextBatchInDataVectorSchemaRootForUnsortedData(chunkIdAndRowId.left());
       } catch (IOException e) {
         e.printStackTrace();
       }
     }
-    buffer = convertToGenericRow(_vectorSchemaRootForNonSortedCase, chunkIdAndRowId.right());
+    buffer.init(convertToGenericRow(_vectorSchemaRootForNonSortedCase, chunkIdAndRowId.right()));
   }
 
   public int getNumSortFields() {
