@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.core.segment.processing.aggregator.ValueAggregator;
 import org.apache.pinot.core.segment.processing.aggregator.ValueAggregatorFactory;
+import org.apache.pinot.core.segment.processing.genericrow.GenericRowArrowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileManager;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowMapperOutputRecordReader;
@@ -100,7 +101,7 @@ public class RollupReducer implements Reducer {
     LOGGER.info("Start creating rollup file under dir: {}", partitionOutputDir);
     long rollupFileCreationStartTimeMs = System.currentTimeMillis();
     _rollupFileManager = new GenericRowFileManager(partitionOutputDir, fieldSpecs, includeNullFields, 0);
-    GenericRowFileWriter rollupFileWriter = _rollupFileManager.getFileWriter();
+    GenericRowArrowFileWriter rollupFileWriter = _rollupFileManager.getFileWriterForTest();
     GenericRow previousRow = new GenericRow();
     recordReader.read(0, previousRow);
     int previousRowId = 0;

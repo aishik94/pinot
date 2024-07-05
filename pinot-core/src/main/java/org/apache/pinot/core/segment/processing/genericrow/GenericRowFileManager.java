@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.spi.data.FieldSpec;
 
@@ -51,6 +52,9 @@ public class GenericRowFileManager {
 
   private GenericRowFileWriter _fileWriter;
   private GenericRowReader _fileReader;
+  private List<Integer> _chunksRowCount;
+  private Schema _arrowSchema;
+  private int _totalNumRows;
 
   public GenericRowFileManager(File outputDir, List<FieldSpec> fieldSpecs, boolean includeNullFields,
       int numSortFields) {
@@ -112,6 +116,14 @@ public class GenericRowFileManager {
    */
   public void closeFileWriter()
       throws IOException {
+    if (_arrowFileWriter != null) {
+      _arrowFileWriter.writeToFile();
+      _chunksRowCount = _arrowFileWriter.getChunkRowCounts();
+      _arrowSchema = _arrowFileWriter.getArrowSchema();
+      _totalNumRows = _arrowFileWriter.getTotalNumRows();
+      _arrowFileWriter.close();
+      _arrowFileWriter = null;
+    }
     if (_fileWriter != null) {
       _fileWriter.close();
       _fileWriter = null;
@@ -153,12 +165,15 @@ public class GenericRowFileManager {
   public GenericRowReader getFileReaderForTest()
       throws IOException {
     if (_fileReader == null) {
-//      _arrowFileWriter.close();
+//      if (_arrowFileWriter != null) {
+//        _arrowFileWriter.writeToFile();
+//      }
+
       Map<String, Object> params = new HashMap<>();
       params.put("dataFiles", getFileListFromDirectoryPath(_outputDir.toString()));
-      params.put("chunkRowCounts", _arrowFileWriter.getChunkRowCounts());
-      params.put("arrowSchema", _arrowFileWriter.getArrowSchema());
-      params.put("totalNumRows", _arrowFileWriter.getTotalNumRows());
+      params.put("chunkRowCounts", _chunksRowCount);
+      params.put("arrowSchema", _arrowSchema);
+      params.put("totalNumRows", _totalNumRows);
       params.put("sortColumnFiles", null);
       params.put("includeNullFields", _includeNullFields);
       _fileReader = GenericRowReaderFactory.getGenericRowReader("ArrowFileGenericRowReader", params);

@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.pinot.core.segment.processing.genericrow.GenericRowArrowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileManager;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowMapperOutputRecordReader;
@@ -85,7 +86,7 @@ public class ReducerTest {
     GenericRowFileManager fileManager =
         new GenericRowFileManager(FILE_MANAGER_OUTPUT_DIR, result.getLeft(), false, result.getRight());
 
-    GenericRowFileWriter fileWriter = fileManager.getFileWriter();
+    GenericRowArrowFileWriter fileWriter = fileManager.getFileWriterForTest();
     int numRecords = 100;
     int[] expectedValues = new int[numRecords];
     GenericRow row = new GenericRow();
@@ -102,7 +103,7 @@ public class ReducerTest {
         .setMergeType(MergeType.CONCAT).build();
     Reducer reducer = ReducerFactory.getReducer("0", fileManager, config, REDUCER_OUTPUT_DIR);
     GenericRowFileManager reducedFileManager = reducer.reduce();
-    GenericRowReader fileReader = reducedFileManager.getFileReader();
+    GenericRowReader fileReader = reducedFileManager.getFileReaderForTest();
     GenericRowMapperOutputRecordReader recordReader = fileReader.getRecordReader();
     for (int i = 0; i < numRecords; i++) {
       row.clear();
