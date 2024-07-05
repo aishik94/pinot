@@ -126,7 +126,7 @@ public class ReducerTest {
     GenericRowFileManager fileManager =
         new GenericRowFileManager(FILE_MANAGER_OUTPUT_DIR, result.getLeft(), true, result.getRight());
 
-    GenericRowFileWriter fileWriter = fileManager.getFileWriter();
+    GenericRowArrowFileWriter fileWriter = fileManager.getFileWriterForTest();
     int numRecords = 100;
     int[] expectedValues = new int[numRecords];
     boolean[] expectedIsNulls = new boolean[numRecords];
@@ -152,7 +152,7 @@ public class ReducerTest {
         .setMergeType(MergeType.CONCAT).build();
     Reducer reducer = ReducerFactory.getReducer("0", fileManager, config, REDUCER_OUTPUT_DIR);
     GenericRowFileManager reducedFileManager = reducer.reduce();
-    GenericRowReader fileReader = reducedFileManager.getFileReader();
+    GenericRowReader fileReader = reducedFileManager.getFileReaderForTest();
     GenericRowMapperOutputRecordReader recordReader = fileReader.getRecordReader();
     for (int i = 0; i < numRecords; i++) {
       row.clear();

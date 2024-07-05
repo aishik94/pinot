@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +137,19 @@ public class GenericRowFileManager {
       for (Path path : directoryStream) {
         fileList.add(path.toFile());
       }
-      Collections.sort(fileList);
+      Collections.sort(fileList, new Comparator<File>() {
+        @Override
+        public int compare(File f1, File f2) {
+          int n1 = extractNumber(f1.getName());
+          int n2 = extractNumber(f2.getName());
+          return Integer.compare(n1, n2);
+        }
+
+        private int extractNumber(String name) {
+          String number = name.replaceAll("\\D", "");
+          return number.isEmpty() ? 0 : Integer.parseInt(number);
+        }
+      });
     } catch (IOException e) {
       e.printStackTrace();
     }

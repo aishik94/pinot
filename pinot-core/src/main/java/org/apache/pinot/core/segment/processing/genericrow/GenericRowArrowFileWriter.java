@@ -301,7 +301,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     _vectorSchemaRoot.setRowCount(_batchRowCount);
 //    if (_currentBufferSize >= DEFAULT_BATCH_SIZE_BYTES)
 //    if (_rootAllocator.getAllocatedMemory() >= DEFAULT_BATCH_SIZE_BYTES) {
-    if (_vectorSchemaRoot.getRowCount() >= 1000) {
+    if (_vectorSchemaRoot.getRowCount() >= 2) {
       writeToFile();
 //      String fileName = _filePrefix + (_suffixCount++) + _fileSuffix;
 //      File outFile = new File(_outputDir, fileName);
@@ -358,7 +358,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     _vectorSchemaRoot.setRowCount(_batchRowCount);
 //    if (_currentBufferSize >= DEFAULT_BATCH_SIZE_BYTES)
 //    if (_rootAllocator.getAllocatedMemory() >= DEFAULT_BATCH_SIZE_BYTES) {
-    if (_vectorSchemaRoot.getRowCount() >= 1000) {
+    if (_vectorSchemaRoot.getRowCount() >= 2) {
       writeToFile();
 //      String fileName = _filePrefix + (_suffixCount++) + _fileSuffix;
 //      File outFile = new File(_outputDir, fileName);
@@ -434,7 +434,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     } catch (Exception e) {
       throw new RuntimeException("Failed to write Arrow file", e);
     }
-    _chunkRowCounts.add(_currentChunkRowCount);
+    _chunkRowCounts.add(++_currentChunkRowCount);
     _vectorSchemaRoot.clear();
     _currentBufferSize = 0;
     _batchRowCount = 0;
