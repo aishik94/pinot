@@ -43,7 +43,11 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.readers.GenericRow;
 
 
@@ -226,42 +230,48 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
         genericRow.putValue(fieldVector.getName(), ((VarBinaryVector) fieldVector).getObject(rowId));
       } else if (fieldVector instanceof ListVector) {
         ListVector listVector = (ListVector) fieldVector;
-        List<Object> list = new ArrayList<>();
-        for (int j = 0; j < listVector.getValueCount(); j++) {
-          list.add(listVector.getObject(j));
-        }
-        if (list.get(0) instanceof Integer) {
-          List<Integer> integerList = new ArrayList<>();
-          for (Object o : list) {
-            integerList.add((Integer) o);
+        int startIndex = listVector.getElementStartIndex(rowId);
+        int endIndex = listVector.getElementEndIndex(rowId);
+        FieldVector dataVector = listVector.getDataVector();
+
+        if (dataVector instanceof IntVector) {
+          int intVectorWidth = ((IntVector) dataVector).getTypeWidth();
+
+          if (intVectorWidth == 32) {
+            int[] result = new int[endIndex - startIndex];
+            for (int j = startIndex; j < endIndex; j++) {
+              result[j - startIndex] = ((IntVector) dataVector).get(j);
+            }
+            genericRow.putValue(fieldVector.getName(), result);
+          } else if (intVectorWidth == 64) {
+            long[] result = new long[endIndex - startIndex];
+            for (int j = startIndex; j < endIndex; j++) {
+              result[j - startIndex] = ((IntVector) dataVector).get(j);
+            }
+            genericRow.putValue(fieldVector.getName(), result);
+          } else {
+            throw new UnsupportedOperationException("Unsupported vector type");
           }
-          genericRow.putValue(fieldVector.getName(), integerList);
-        } else if (list.get(0) instanceof Long) {
-          List<Long> longList = new ArrayList<>();
-          for (Object o : list) {
-            longList.add((Long) o);
+        } else if (dataVector instanceof Float4Vector) {
+          float[] result = new float[endIndex - startIndex];
+          for (int j = startIndex; j < endIndex; j++) {
+            result[j - startIndex] = ((Float4Vector) dataVector).get(j);
           }
-          genericRow.putValue(fieldVector.getName(), longList);
-        } else if (list.get(0) instanceof Float) {
-          List<Float> floatList = new ArrayList<>();
-          for (Object o : list) {
-            floatList.add((Float) o);
+          genericRow.putValue(fieldVector.getName(), result);
+        } else if (dataVector instanceof Float8Vector) {
+          double[] result = new double[endIndex - startIndex];
+          for (int j = startIndex; j < endIndex; j++) {
+            result[j - startIndex] = ((Float8Vector) dataVector).get(j);
           }
-          genericRow.putValue(fieldVector.getName(), floatList);
-        } else if (list.get(0) instanceof Double) {
-          List<Double> doubleList = new ArrayList<>();
-          for (Object o : list) {
-            doubleList.add((Double) o);
+          genericRow.putValue(fieldVector.getName(), result);
+        } else if (dataVector instanceof VarCharVector) {
+          String[] result = new String[endIndex - startIndex];
+          for (int j = startIndex; j < endIndex; j++) {
+            result[j - startIndex] = ((VarCharVector) dataVector).getObject(j).toString();
           }
-          genericRow.putValue(fieldVector.getName(), doubleList);
-        } else if (list.get(0) instanceof String) {
-          List<String> stringList = new ArrayList<>();
-          for (Object o : list) {
-            stringList.add((String) o);
-          }
-          genericRow.putValue(fieldVector.getName(), stringList);
+          genericRow.putValue(fieldVector.getName(), result);
         } else {
-          throw new UnsupportedOperationException("Unsupported list type");
+          throw new UnsupportedOperationException("Unsupported vector type");
         }
       } else {
         throw new UnsupportedOperationException("Unsupported vector type");

@@ -126,29 +126,34 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
       } else {
         switch (storedType) {
           case INT:
-            fieldType = new FieldType(true, new ArrowType.List.Int(32, true), null);
-            arrowField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(), fieldType, null);
-            arrowFields.add(arrowField);
+            Field intListField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(),
+                FieldType.nullable(new ArrowType.List()),
+                List.of(new Field("item", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+            arrowFields.add(intListField);
             break;
           case LONG:
-            fieldType = new FieldType(true, new ArrowType.List.Int(64, true), null);
-            arrowField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(), fieldType, null);
-            arrowFields.add(arrowField);
+            Field longListField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(),
+                FieldType.nullable(new ArrowType.List()),
+                List.of(new Field("item", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            arrowFields.add(longListField);
             break;
           case FLOAT:
-            fieldType = new FieldType(true, new ArrowType.List.FloatingPoint(FloatingPointPrecision.SINGLE), null);
-            arrowField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(), fieldType, null);
-            arrowFields.add(arrowField);
+            Field floatListField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(),
+                FieldType.nullable(new ArrowType.List()),
+                List.of(new Field("item", FieldType.nullable(new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)), null)));
+            arrowFields.add(floatListField);
             break;
           case DOUBLE:
-            fieldType = new FieldType(true, new ArrowType.List.FloatingPoint(FloatingPointPrecision.DOUBLE), null);
-            arrowField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(), fieldType, null);
-            arrowFields.add(arrowField);
+            Field doubleListField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(),
+                FieldType.nullable(new ArrowType.List()),
+                List.of(new Field("item", FieldType.nullable(new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)), null)));
+            arrowFields.add(doubleListField);
             break;
           case STRING:
-            fieldType = new FieldType(true, new ArrowType.List.Utf8(), null);
-            arrowField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(), fieldType, null);
-            arrowFields.add(arrowField);
+            Field stringListField = new org.apache.arrow.vector.types.pojo.Field(fieldSpec.getName(),
+                FieldType.nullable(new ArrowType.List()),
+                List.of(new Field("item", FieldType.nullable(new ArrowType.Utf8()), null)));
+            arrowFields.add(stringListField);
             break;
           default:
             throw new RuntimeException("Unsupported data type: " + storedType);
@@ -204,14 +209,14 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
         int numValues = values.length;
         switch (fieldSpec.getDataType().getStoredType()) {
           case INT:
-            UnionListWriter listWriter = ((ListVector) fieldVector).getWriter();
-            listWriter.setPosition(_batchRowCount);
-            listWriter.startList();
+            UnionListWriter listWriterInt = ((ListVector) fieldVector).getWriter();
+            listWriterInt.setPosition(_batchRowCount);
+            listWriterInt.startList();
             for (Object value : values) {
-              listWriter.writeInt((Integer) value);
+              listWriterInt.writeInt((Integer) value);
             }
-            listWriter.setValueCount(numValues);
-            listWriter.endList();
+            listWriterInt.setValueCount(numValues);
+            listWriterInt.endList();
             break;
           case LONG:
             UnionListWriter listWriterLong = ((ListVector) fieldVector).getWriter();
@@ -249,8 +254,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
             listWriterString.startList();
             for (Object value : values) {
               bytes = value.toString().getBytes();
-              BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-              ArrowBuf arrowBuf = allocator.buffer(bytes.length);
+              ArrowBuf arrowBuf = _rootAllocator.buffer(bytes.length);
               arrowBuf.writeBytes(bytes);
               listWriterString.writeVarChar(0, bytes.length, arrowBuf);
             }
@@ -263,8 +267,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
             listWriterBytes.startList();
             for (Object value : values) {
               bytes = (byte[]) value;
-              BufferAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-              ArrowBuf arrowBuf = allocator.buffer(bytes.length);
+              ArrowBuf arrowBuf = _rootAllocator.buffer(bytes.length);
               arrowBuf.writeBytes(bytes);
               listWriterBytes.writeVarBinary(0, bytes.length, arrowBuf);
             }
@@ -278,7 +281,7 @@ public class GenericRowArrowFileWriter implements FileWriter<GenericRow>, Closea
     }
     Set<String> nullFields = row.getNullValueFields();
     if (_includeNullFields) {
-     ListVector nullFieldsVector = (ListVector) fieldVectors.get(fieldVectors.size() - 1);
+      ListVector nullFieldsVector = (ListVector) fieldVectors.get(fieldVectors.size() - 1);
       UnionListWriter listWriter = nullFieldsVector.getWriter();
       listWriter.setPosition(_batchRowCount);
       listWriter.startList();
