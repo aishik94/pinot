@@ -28,17 +28,17 @@ import org.apache.pinot.spi.data.readers.RecordReaderConfig;
 
 
 public class ArrowFileGenericRowRecordReader implements RecordReader, GenericRowMapperOutputRecordReader {
-  ArrowFileGenericRowReader _arrowFileReader;
+  ArrowFileMapperOutputReader _arrowFileReader;
   int _startRowId;
   int _endRowId;
 
-  public ArrowFileGenericRowRecordReader(ArrowFileGenericRowReader arrowFileReader) {
+  public ArrowFileGenericRowRecordReader(ArrowFileMapperOutputReader arrowFileReader) {
     _arrowFileReader = arrowFileReader;
     _startRowId = 0;
     _endRowId = arrowFileReader.getNumRows();
   }
 
-  public ArrowFileGenericRowRecordReader(ArrowFileGenericRowReader arrowFileReader, int startRowId, int endRowId) {
+  public ArrowFileGenericRowRecordReader(ArrowFileMapperOutputReader arrowFileReader, int startRowId, int endRowId) {
     _startRowId = startRowId;
     _endRowId = endRowId;
     _arrowFileReader = arrowFileReader;

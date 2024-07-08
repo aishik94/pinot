@@ -33,7 +33,6 @@ import org.apache.pinot.core.segment.processing.framework.SegmentProcessorConfig
 import org.apache.pinot.core.segment.processing.genericrow.AdaptiveSizeBasedWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowArrowFileWriter;
 import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileManager;
-import org.apache.pinot.core.segment.processing.genericrow.GenericRowFileWriter;
 import org.apache.pinot.core.segment.processing.partitioner.Partitioner;
 import org.apache.pinot.core.segment.processing.partitioner.PartitionerConfig;
 import org.apache.pinot.core.segment.processing.partitioner.PartitionerFactory;

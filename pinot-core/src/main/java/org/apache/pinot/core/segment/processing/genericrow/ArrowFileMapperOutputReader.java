@@ -29,8 +29,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.arrow.algorithm.sort.DefaultVectorComparators;
-import org.apache.arrow.algorithm.sort.VectorValueComparator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.FieldVector;
@@ -43,15 +41,11 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.ipc.ArrowFileReader;
 import org.apache.arrow.vector.ipc.message.ArrowBlock;
-import org.apache.arrow.vector.types.pojo.ArrowType;
-import org.apache.arrow.vector.types.pojo.Field;
-import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.readers.GenericRow;
 
 
-public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseable {
+public class ArrowFileMapperOutputReader implements MapperOutputReader, AutoCloseable {
   public static final int MAX_ROWS_TO_LOAD_PER_BATCH = 10000;
   public static final int ROOT_ALLOCATOR_CAPACITY = 512 * 1024 * 1024;
   boolean _isSortColumnConfigured;
@@ -72,7 +66,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
   boolean _isChunkLoaded;
   boolean _includeNullFields;
 
-  public ArrowFileGenericRowReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
+  public ArrowFileMapperOutputReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
       Schema arrowSchema, int totalNumRows) {
     _dataFiles = dataFiles;
     _sortColumnFiles = sortColumnFiles;
@@ -94,7 +88,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     _includeNullFields = false;
   }
 
-  public ArrowFileGenericRowReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
+  public ArrowFileMapperOutputReader(List<File> dataFiles, List<File> sortColumnFiles, List<Integer> chunkRowCounts,
       Schema arrowSchema, int totalNumRows, boolean includeNullFields) {
     _dataFiles = dataFiles;
     _sortColumnFiles = sortColumnFiles;
@@ -126,7 +120,7 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
 
         // Wrap the MappedByteBuffer in a SeekableByteChannel
         SeekableByteChannel seekableByteChannel = new SeekableByteChannel() {
-          private int position = 0;
+          private int _position = 0;
 
           @Override
           public int read(ByteBuffer dst) throws IOException {
@@ -148,13 +142,13 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
 
           @Override
           public long position() throws IOException {
-            return position;
+            return _position;
           }
 
           @Override
           public SeekableByteChannel position(long newPosition) throws IOException {
             mappedByteBuffer.position((int) newPosition);
-            position = (int) newPosition;
+            _position = (int) newPosition;
             return this;
           }
 
@@ -319,7 +313,8 @@ public class ArrowFileGenericRowReader implements GenericRowReader, AutoCloseabl
     reuse = convertToGenericRow(_vectorSchemaRootForNonSortedCase, _currentChunkRowCount);
     _currentChunkRowCount++;
     _currentRowCount++;
-    if ((_currentChunkRowCount == _vectorSchemaRootForNonSortedCase.getRowCount()) && (_chunkCount < _dataFiles.size() - 1)){
+    if ((_currentChunkRowCount == _vectorSchemaRootForNonSortedCase.getRowCount()) && (_chunkCount
+        < _dataFiles.size() - 1)) {
       _currentChunkRowCount = 0;
       _vectorSchemaRootForNonSortedCase.close();
       loadNextBatchInDataVectorSchemaRootForUnsortedData(++_chunkCount);

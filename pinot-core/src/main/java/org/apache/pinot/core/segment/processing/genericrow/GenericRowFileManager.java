@@ -52,7 +52,7 @@ public class GenericRowFileManager {
   File _outputDir;
 
   private GenericRowFileWriter _fileWriter;
-  private GenericRowReader _fileReader;
+  private MapperOutputReader _fileReader;
   private List<Integer> _chunksRowCount;
   private Schema _arrowSchema;
   private int _totalNumRows;
@@ -159,7 +159,7 @@ public class GenericRowFileManager {
   /**
    * Returns the file reader. Creates one if not exists.
    */
-  public GenericRowReader getFileReader()
+  public MapperOutputReader getFileReader()
       throws IOException {
     if (_fileReader == null) {
       Preconditions.checkState(_offsetFile.exists(), "Record offset file: %s does not exist", _offsetFile);
@@ -170,12 +170,12 @@ public class GenericRowFileManager {
       params.put("fieldSpecs", _fieldSpecs);
       params.put("includeNullFields", _includeNullFields);
       params.put("numSortFields", _numSortFields);
-      _fileReader = GenericRowReaderFactory.getGenericRowReader("GenericRowFileReader", params);
+      _fileReader = MapperOutputReaderFactory.getMapperOutputReader("GenericRowFileReader", params);
     }
     return _fileReader;
   }
 
-  public GenericRowReader getFileReaderForTest()
+  public MapperOutputReader getFileReaderForTest()
       throws IOException {
     if (_fileReader == null) {
 //      if (_arrowFileWriter != null) {
@@ -189,17 +189,17 @@ public class GenericRowFileManager {
       params.put("totalNumRows", _totalNumRows);
       params.put("sortColumnFiles", null);
       params.put("includeNullFields", _includeNullFields);
-      _fileReader = GenericRowReaderFactory.getGenericRowReader("ArrowFileGenericRowReader", params);
+      _fileReader = MapperOutputReaderFactory.getMapperOutputReader("ArrowFileMapperOutputReader", params);
     }
     return _fileReader;
   }
 
-  public GenericRowReader getFileReaderFactory(String readerName, Map<String, Object> params)
+  public MapperOutputReader getFileReaderFactory(String readerName, Map<String, Object> params)
       throws IOException {
     if (_fileReader == null) {
       Preconditions.checkState(_offsetFile.exists(), "Record offset file: %s does not exist", _offsetFile);
       Preconditions.checkState(_dataFile.exists(), "Record data file: %s does not exist", _dataFile);
-      return GenericRowReaderFactory.getGenericRowReader(readerName, params);
+      return MapperOutputReaderFactory.getMapperOutputReader(readerName, params);
     }
     return _fileReader;
   }
